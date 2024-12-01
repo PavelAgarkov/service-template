@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"flick/internal"
-	"flick/internal/service"
+	"service-template/internal"
+	"service-template/internal/service"
 )
 
 type Handlers struct {

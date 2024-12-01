@@ -2,16 +2,16 @@ package main
 
 import (
 	"context"
-	"flick/application"
-	"flick/internal"
-	"flick/internal/handler"
-	"flick/internal/service"
-	"flick/pkg"
-	"flick/server"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"service-template/application"
+	"service-template/internal"
+	"service-template/internal/handler"
+	"service-template/internal/service"
+	"service-template/pkg"
+	"service-template/server"
 	"syscall"
 )
 

@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"flick/pkg"
 	"net/http"
+	"service-template/pkg"
 )
 
 type EmptyRequest struct {
