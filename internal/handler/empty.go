@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"flick/pkg"
 	"fmt"
 	"net/http"
-	"time"
 )
 
 type EmptyRequest struct {
@@ -12,10 +12,12 @@ type EmptyRequest struct {
 	Email string `json:"email"`
 }
 
-func EmptyHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
+	serializer := h.Container().Get("serializer").(*pkg.Serializer)
 	ctx := r.Context()
+	fmt.Println(h.simpleService.Get())
 	empty := &EmptyRequest{}
-	err := deserialize(r, empty)
+	err := serializer.Deserialize(r, empty)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -24,9 +26,9 @@ func EmptyHandler(w http.ResponseWriter, r *http.Request) {
 	if ctx.Err() != nil {
 		return
 	}
-	time.Sleep(10 * time.Second)
+	//time.Sleep(10 * time.Second)
 	w.WriteHeader(http.StatusOK)
-	json, err := serialize(empty)
+	json, err := serializer.Serialize(empty)
 
 	w.Write(json)
 	fmt.Println(json)
