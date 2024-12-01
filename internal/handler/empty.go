@@ -27,9 +27,10 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//time.Sleep(10 * time.Second)
-	w.WriteHeader(http.StatusOK)
 	json, err := serializer.Serialize(empty)
 
+	w.WriteHeader(http.StatusOK)
 	w.Write(json)
+	//return response.Json(w, http.StatusOK, empty)
 	fmt.Println(json)
 }

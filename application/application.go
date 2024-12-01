@@ -20,12 +20,12 @@ type Shutdown struct {
 type App struct {
 	shutdownRWM sync.RWMutex
 	shutdown    *LinkedList
-	ctx         context.Context
+	//ctx         context.Context
 }
 
 func NewApp(ctx context.Context) *App {
 	return &App{
-		ctx:      ctx,
+		//ctx:      ctx,
 		shutdown: &LinkedList{},
 	}
 }
@@ -76,6 +76,10 @@ func (a *App) ShutdownByName(name string) {
 	}
 }
 
+func (a *App) GetAllRegisteredShutdown() *LinkedList {
+	return a.shutdown
+}
+
 // shutdownAll shuts down all registered shutdown functions.
 func (a *App) shutdownAll() {
 	a.shutdownRWM.Lock()
@@ -90,14 +94,16 @@ func (a *App) shutdownAll() {
 
 // Stop stops the application.
 func (a *App) Stop() {
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		log.Printf("Stop()")
-		<-a.ctx.Done()
-		log.Printf("father.Done()")
-		a.shutdownAll()
-	}()
-	wg.Wait()
+	//var wg sync.WaitGroup
+	//wg.Add(1)
+	//go func() {
+	//	defer wg.Done()
+	log.Printf("Stop()")
+	//<-a.ctx.Done()
+	log.Printf("father.Done()")
+	a.shutdownAll()
+	// добавить проверку всех завершенных нод. Удалять успешно завершенные из списка
+	//wg.Done()
+	//}()
+	//wg.Wait()
 }

@@ -42,12 +42,12 @@ func main() {
 	serverHttp := server.NewSimpleHTTPServer(":3000")
 	serverHttp.ToConfigureHandlers(handlerList(handlers))
 	simpleHttpServerShutdownFunction := serverHttp.RunSimpleHTTPServer(server.RecoverMiddleware, server.LoggingMiddleware)
-	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 0)
+	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
 
 	serverHttp1 := server.NewSimpleHTTPServer(":3001")
 	serverHttp1.ToConfigureHandlers(handlerList(handlers))
 	simpleHttpServerShutdownFunction1 := serverHttp1.RunSimpleHTTPServer(server.RecoverMiddleware, server.LoggingMiddleware)
-	app.RegisterShutdown("simple_http_server_1", simpleHttpServerShutdownFunction1, 99)
+	app.RegisterShutdown("simple_http_server_1", simpleHttpServerShutdownFunction1, 0)
 
 	<-father.Done()
 	app.Stop()
