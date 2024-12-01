@@ -1,4 +1,4 @@
-module flick
+module service-template
 
 go 1.23.3
 
