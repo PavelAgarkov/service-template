@@ -3,7 +3,6 @@ package handler
 import (
 	"flick/internal"
 	"flick/internal/service"
-	"net/http"
 )
 
 type Handlers struct {
@@ -26,6 +25,6 @@ func (h *Handlers) Container() *internal.Container {
 //	return "HandlersList"
 //}
 
-type HandlersList interface {
-	EmptyHandler(w http.ResponseWriter, r *http.Request)
-}
+//type HandlersList interface {
+//	EmptyHandler(w http.ResponseWriter, r *http.Request)
+//}

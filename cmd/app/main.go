@@ -29,25 +29,30 @@ func main() {
 		cancel()
 	}()
 
-	app := application.NewApp(father)
+	app := application.NewApp()
 	serializer := pkg.NewSerializer()
 
 	container := internal.NewContainer().
 		Set("serializer", serializer)
 
 	simpleService := service.NewSimple()
-
 	handlers := handler.NewHandlers(container, simpleService)
 
-	serverHttp := server.NewSimpleHTTPServer(":3000")
-	serverHttp.ToConfigureHandlers(handlerList(handlers))
-	simpleHttpServerShutdownFunction := serverHttp.RunSimpleHTTPServer(server.RecoverMiddleware, server.LoggingMiddleware)
+	simpleHttpServerShutdownFunction := server.CreateHttpServer(
+		handlerList(handlers),
+		":3000",
+		server.RecoverMiddleware,
+		server.LoggingMiddleware,
+	)
 	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
 
-	serverHttp1 := server.NewSimpleHTTPServer(":3001")
-	serverHttp1.ToConfigureHandlers(handlerList(handlers))
-	simpleHttpServerShutdownFunction1 := serverHttp1.RunSimpleHTTPServer(server.RecoverMiddleware, server.LoggingMiddleware)
-	app.RegisterShutdown("simple_http_server_1", simpleHttpServerShutdownFunction1, 0)
+	simpleHttpServerShutdownFunction2 := server.CreateHttpServer(
+		handlerList(handlers),
+		":3001",
+		server.RecoverMiddleware,
+		server.LoggingMiddleware,
+	)
+	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction2, 0)
 
 	<-father.Done()
 	app.Stop()
