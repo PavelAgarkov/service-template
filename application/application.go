@@ -1,7 +1,6 @@
 package application
 
 import (
-	"context"
 	"log"
 	"sync"
 )
@@ -23,9 +22,8 @@ type App struct {
 	//ctx         context.Context
 }
 
-func NewApp(ctx context.Context) *App {
+func NewApp() *App {
 	return &App{
-		//ctx:      ctx,
 		shutdown: &LinkedList{},
 	}
 }
@@ -81,29 +79,18 @@ func (a *App) GetAllRegisteredShutdown() *LinkedList {
 }
 
 // shutdownAll shuts down all registered shutdown functions.
-func (a *App) shutdownAll() {
+func (a *App) shutdownAllAndDeleteAllCanceled() {
 	a.shutdownRWM.Lock()
 	defer a.shutdownRWM.Unlock()
-	current := a.shutdown.Node
-	for current != nil {
-		current.shutdownFunc()
-		log.Printf("shutdown func %s with priority %v", current.Name, current.Priority)
-		current = current.Next
+	for a.shutdown.Node != nil {
+		a.shutdown.Node.shutdownFunc()
+		log.Printf("shutdown func %s with priority %v", a.shutdown.Node.Name, a.shutdown.Node.Priority)
+		a.shutdown.Node = a.shutdown.Node.Next
 	}
 }
 
 // Stop stops the application.
 func (a *App) Stop() {
-	//var wg sync.WaitGroup
-	//wg.Add(1)
-	//go func() {
-	//	defer wg.Done()
 	log.Printf("Stop()")
-	//<-a.ctx.Done()
-	log.Printf("father.Done()")
-	a.shutdownAll()
-	// добавить проверку всех завершенных нод. Удалять успешно завершенные из списка
-	//wg.Done()
-	//}()
-	//wg.Wait()
+	a.shutdownAllAndDeleteAllCanceled()
 }

@@ -75,3 +75,10 @@ func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 		log.Printf("Server has done: %s", simple.port)
 	}
 }
+
+func CreateHttpServer(fn func(simple *SimpleHTTPServer), port string, mwf ...mux.MiddlewareFunc) func() {
+	serverHttp := NewSimpleHTTPServer(port)
+	serverHttp.ToConfigureHandlers(fn)
+	simpleHttpServerShutdownFunction := serverHttp.RunSimpleHTTPServer(mwf...)
+	return simpleHttpServerShutdownFunction
+}

@@ -32,3 +32,9 @@ func (serializer *Serializer) Serialize(object any) ([]byte, error) {
 
 	return jsonData, nil
 }
+
+func (serializer *Serializer) ResponseJson(w http.ResponseWriter, data []byte, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(data)
+}
