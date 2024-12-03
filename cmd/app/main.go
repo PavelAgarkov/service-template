@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"service-template/application"
 	"service-template/internal"
 	"service-template/internal/handler"
+	"service-template/internal/logger"
 	"service-template/internal/service"
 	"service-template/pkg"
 	"service-template/server"
@@ -17,6 +17,7 @@ import (
 
 func main() {
 	father, cancel := context.WithCancel(context.Background())
+	father = logger.WithCtx(father, logger.Get())
 	defer cancel()
 
 	sig := make(chan os.Signal, 1)
@@ -25,7 +26,7 @@ func main() {
 
 	go func() {
 		<-sig
-		log.Println("Signal received. Shutting down server...")
+		logger.FromCtx(father).Info("Signal received. Shutting down server...")
 		cancel()
 	}()
 
@@ -56,7 +57,7 @@ func main() {
 
 	<-father.Done()
 	app.Stop()
-	log.Printf("app is shutting down")
+	logger.FromCtx(father).Info("app is shutting down")
 }
 
 func handlerList(handlers *handler.Handlers) func(simple *server.SimpleHTTPServer) {
