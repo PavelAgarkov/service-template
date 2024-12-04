@@ -1,0 +1,80 @@
+version: "3.9"
+services:
+#  node:
+#    container_name: 'node-local'
+#    stdin_open: true
+#    tty: true
+#    image: node:18
+#    working_dir: /www/pdf/pdf-frontend
+#    user: node
+#    volumes:
+#      - ..:/www
+#    ports:
+#      - "0.0.0.0:9499:9499"
+#    networks:
+#      - node-net
+
+#  proxy:
+#    restart: always
+#    image: jwilder/nginx-proxy
+#    volumes:
+#      - .:/var/www/pdf
+#      - ./proxy/hosts:/etc/hosts
+#      - /var/run/docker.sock:/tmp/docker.sock
+#      - ./proxy/my_nginx.conf:/etc/nginx/conf.d/my_nginx.conf
+#    ports:
+#      - "80:81"
+#      - "443:444"
+#    networks:
+#      - pdf-net
+#    depends_on:
+#      - backend
+
+#  backend:
+#    restart: always
+#    build: .
+#    volumes:
+#      - ..:/www/src
+#    command: ./pdf
+#    working_dir: /www/src/pdf
+#    ports:
+#      - "0.0.0.0:3000:3000"
+#    networks:
+#      - pdf-net
+  
+  #https://habr.com/ru/articles/578744/
+  postgres:
+    image: postgres:14.8-alpine3.18
+    environment:
+      POSTGRES_DB: "habrdb"
+      POSTGRES_USER: "habrpguser"
+      POSTGRES_PASSWORD: "pgpwd4habr"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ../2. Init Database:/docker-entrypoint-initdb.d
+      - habrdb-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - service-template
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U habrpguser -d habrdb" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+
+volumes:
+  habrdb-data:
+
+networks:
+  service-template:
+    driver: bridge
+  node-net:
+    driver: bridge
