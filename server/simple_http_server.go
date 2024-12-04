@@ -69,7 +69,14 @@ func (simple *SimpleHTTPServer) ToConfigureHandlers(configure func(simple *Simpl
 func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 	return func() {
 		log.Println("Shutting down the server...")
-		if err := server.Shutdown(context.Background()); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		// использовать server.Shutdown(ctx) вместо server.Close() для корректного завершения запросов
+		// и предотвращения утечек ресурсов
+		// последние запросы за 5 секунд будут обработаны
+		// после этого сервер будет остановлен
+		// если необходимо остановить сервер сразу, то использовать server.Close()
+		if err := server.Shutdown(ctx); err != nil {
 			log.Printf("Server shutdown failed: %s", err)
 		}
 		log.Printf("Server has done: %s", simple.port)

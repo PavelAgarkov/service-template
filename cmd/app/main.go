@@ -32,11 +32,16 @@ func main() {
 	app := application.NewApp()
 	serializer := pkg.NewSerializer()
 
-	container := internal.NewContainer().
-		Set("serializer", serializer)
+	postgres, postgresShutdown := pkg.NewPostgres("0.0.0.0", "habrpguser", "habrdb", "pgpwd4habr", "disable")
+	app.RegisterShutdown("postgres", postgresShutdown, 100)
+	//srv := service.NewSrv()
 
-	simpleService := service.NewSimple()
-	handlers := handler.NewHandlers(container, simpleService)
+	container := internal.NewContainer().
+		Set("serializer", serializer).
+		Set("postgres", postgres).
+		Set("service.simple", service.NewSrv(), "serializer", "postgres")
+
+	handlers := handler.NewHandlers(container)
 
 	simpleHttpServerShutdownFunction := server.CreateHttpServer(
 		handlerList(handlers),
