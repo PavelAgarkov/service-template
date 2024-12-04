@@ -7,16 +7,12 @@ import (
 
 type Сontainerized interface {
 	SetServiceLocator(container ContainerInterface)
+	GetServiceLocator() ContainerInterface
 }
 
 type ContainerInterface interface {
-	GetGlobalContainer() *Container
 	Set(key string, value any, services ...string) *Container
 	Get(key string) any
-}
-
-func (c *Container) GetGlobalContainer() *Container {
-	return c
 }
 
 type Container struct {
