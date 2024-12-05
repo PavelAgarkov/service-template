@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"net/http"
+	"service-template/internal/logger"
 	"service-template/internal/service"
 	"service-template/pkg"
 )
@@ -21,9 +22,10 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 	simple := h.Container().Get("service.simple").(*service.Srv)
 	serializer := simple.GetServiceLocator().Get("serializer").(*pkg.Serializer)
 
-	fmt.Println(simple)
-
 	ctx := r.Context()
+
+	l := logger.FromCtx(ctx)
+	l.Debug(fmt.Sprintf("%v", simple))
 
 	empty := &EmptyRequest{}
 	err := serializer.Deserialize(r, empty)
@@ -45,14 +47,16 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	row := postgres.GetDB().QueryRow("insert into user_p(id) values (1);")
-	err = row.Err()
-	fmt.Println(err)
+	if err = row.Err(); err != nil {
+		l.Error(err.Error())
+	}
 	row1 := postgres.GetDB().QueryRow("select count(*) from user_p")
-	err1 := row1.Err()
-	fmt.Println(err1)
+	if err = row1.Err(); err != nil {
+		l.Error(err.Error())
+	}
 	a := 0
 	row1.Scan(&a)
-	fmt.Println(a)
+	l.Debug(fmt.Sprintf("%v", a))
 
 	empty.Age = a
 

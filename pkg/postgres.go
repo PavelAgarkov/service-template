@@ -11,8 +11,8 @@ type PostgresRepository struct {
 	db *sqlx.DB
 }
 
-func NewPostgres(host, user, dbname, password, sslMode string) (*PostgresRepository, func()) {
-	dataSourceName := "host=" + host + " user=" + user + " dbname=" + dbname + " sslmode=" + sslMode + " password=" + password
+func NewPostgres(host, port, user, password, dbname, sslMode string) (*PostgresRepository, func()) {
+	dataSourceName := "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=" + dbname + " sslmode=" + sslMode
 	db, err := sqlx.Connect("postgres", dataSourceName)
 	if err != nil {
 		log.Fatalln(err)

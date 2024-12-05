@@ -12,9 +12,10 @@ import (
 
 type ctxKey struct{}
 
-var once sync.Once
-
-var logger *zap.Logger
+var (
+	once   sync.Once
+	logger *zap.Logger
+)
 
 func Get() *zap.Logger {
 	once.Do(func() {

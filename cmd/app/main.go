@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"service-template/application"
 	"service-template/internal"
+	"service-template/internal/config"
 	"service-template/internal/handler"
 	"service-template/internal/logger"
 	"service-template/internal/service"
@@ -19,6 +20,9 @@ func main() {
 	father, cancel := context.WithCancel(context.Background())
 	father = logger.WithCtx(father, logger.Get())
 	defer cancel()
+
+	logger.FromCtx(father).Info("config initializing")
+	cfg := config.GetConfig()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -33,7 +37,7 @@ func main() {
 	app := application.NewApp()
 	serializer := pkg.NewSerializer()
 
-	postgres, postgresShutdown := pkg.NewPostgres("0.0.0.0", "habrpguser", "habrdb", "pgpwd4habr", "disable")
+	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
 	//srv := service.NewSrv()
 
