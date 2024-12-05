@@ -50,7 +50,7 @@ services:
       POSTGRES_PASSWORD: "pgpwd4habr"
       PGDATA: "/var/lib/postgresql/data/pgdata"
     volumes:
-      - ./postgres-config/scripts/:/docker-entrypoint-initdb.d/init.sql
+      - ./postgres-config/scripts/:/docker-entrypoint-initdb.d
       - ./postgres-config/postgresql.conf:/etc/postgresql/postgresql.conf
       - ./postgres-config/pg_hba.conf:/etc/postgresql/pg_hba.conf
       - habrdb-data:/var/lib/postgresql/data
