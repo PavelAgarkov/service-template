@@ -9,6 +9,7 @@ import (
 	"service-template/application"
 	"service-template/internal"
 	"service-template/internal/handler"
+	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
 	"service-template/server"
@@ -30,16 +31,16 @@ func main() {
 	}()
 
 	app := application.NewApp()
-	serializer := pkg.NewSerializer()
 
 	postgres, postgresShutdown := pkg.NewPostgres("0.0.0.0", "habrpguser", "habrdb", "pgpwd4habr", "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
-	//srv := service.NewSrv()
 
-	container := internal.NewContainer().
-		Set("serializer", serializer).
-		Set("postgres", postgres).
-		Set("service.simple", service.NewSrv(), "serializer", "postgres")
+	container := internal.NewContainer(
+		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
+		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
+	).
+		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
+		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService)
 
 	handlers := handler.NewHandlers(container)
 

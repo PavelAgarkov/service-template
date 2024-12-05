@@ -7,6 +7,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const PostgresService = "postgres"
+
 type PostgresRepository struct {
 	db *sqlx.DB
 }

@@ -2,12 +2,16 @@ package internal
 
 import (
 	"log"
-	"sync"
 )
 
+type ServiceInit struct {
+	Name    string
+	Service any
+}
+
 type Сontainerized interface {
-	SetServiceLocator(container ContainerInterface)
-	GetServiceLocator() ContainerInterface
+	SetServiceLocator(container LocatorInterface)
+	GetServiceLocator() LocatorInterface
 }
 
 type ContainerInterface interface {
@@ -15,39 +19,102 @@ type ContainerInterface interface {
 	Get(key string) any
 }
 
+type LocatorInterface interface {
+	Get(key string) any
+}
+
 type Container struct {
-	containerMu sync.RWMutex
-	container   map[string]any
+	container    map[string]any
+	requirements map[string]any
 }
 
-func NewContainer() *Container {
-	return &Container{
-		container: make(map[string]any),
+func NewContainer(serviceInit ...*ServiceInit) *Container {
+	container := &Container{
+		container:    make(map[string]any),
+		requirements: make(map[string]any),
 	}
+	for _, v := range serviceInit {
+		container.setRequirements(v.Name, v.Service)
+	}
+	return container
 }
 
-func (c *Container) Set(key string, value any, services ...string) *Container {
-	containerized, ok := value.(Сontainerized)
-	if ok {
-		if is, service := c.allServicesAreAvailable(services...); is {
-			containerized.SetServiceLocator(NewServiceLocator(c, services...))
+func (c *Container) Set(key string, cnt any, services ...string) *Container {
+	if _, ok := c.container[key]; ok {
+		log.Fatalf("Service %s not found in container", key)
+	}
+
+	containerized, ok := cnt.(Сontainerized)
+	if ok && containerized != nil {
+		is, service := c.allServicesAreAvailableInContainerAndRequirements(services...)
+		if is {
+			newLocator := c.NewServiceLocator(services...)
+			containerized.SetServiceLocator(newLocator)
+			c.container[key] = containerized
 		} else {
 			log.Fatalf("Service %s not found", service)
 		}
+	} else {
+		c.container[key] = cnt
 	}
-	c.container[key] = value
 	return c
 }
 
 func (c *Container) Get(key string) any {
-	c.containerMu.RLock()
-	defer c.containerMu.RUnlock()
+	if _, ok := c.container[key]; !ok {
+		return nil
+	}
 	return c.container[key]
 }
 
-func (c *Container) allServicesAreAvailable(services ...string) (bool, string) {
+func (c *Container) NewServiceLocator(services ...string) LocatorInterface {
+	localContainer := NewContainer()
+
+	for _, serviceName := range services {
+		serviceFromContainer := c.getForLocator(serviceName)
+		localContainer.setForLocator(serviceName, serviceFromContainer)
+	}
+
+	return localContainer
+}
+
+func (c *Container) setRequirements(key string, value any) *Container {
+	if _, ok := c.requirements[key]; ok {
+		log.Fatalf("Service %s not found in requirements", key)
+	}
+	c.requirements[key] = value
+	return c
+}
+
+func (c *Container) setForLocator(key string, cnt any) *Container {
+	if _, ok := c.container[key]; ok {
+		log.Fatalf("Service %s not found in container", key)
+	}
+	c.container[key] = cnt
+	return c
+
+}
+
+func (c *Container) getForLocator(key string) any {
+	value, okContainer := c.container[key]
+	if okContainer {
+		return value
+	}
+
+	value, okRequirements := c.requirements[key]
+	if okRequirements {
+		return value
+	}
+
+	log.Fatalf("Service %s not found", key)
+	return nil
+}
+
+func (c *Container) allServicesAreAvailableInContainerAndRequirements(services ...string) (bool, string) {
 	for _, service := range services {
-		if _, ok := c.container[service]; !ok {
+		_, okContainer := c.container[service]
+		_, okRequirements := c.requirements[service]
+		if !okContainer && !okRequirements {
 			return false, service
 		}
 	}

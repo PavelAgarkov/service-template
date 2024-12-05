@@ -6,6 +6,8 @@ import (
 	"net/http"
 )
 
+const SerializerService = "serializer"
+
 type Serializer struct{}
 
 func NewSerializer() *Serializer {

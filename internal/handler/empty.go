@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
 )
@@ -15,11 +16,13 @@ type EmptyRequest struct {
 
 func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 	//serializer := h.Container().Get("serializer").(*pkg.Serializer)
-	postgres := h.Container().Get("postgres").(*pkg.PostgresRepository)
-	simple := h.Container().Get("service.simple").(*service.Srv)
-	serializer := simple.GetServiceLocator().Get("serializer").(*pkg.Serializer)
+	//postgres := h.Container().Get("postgres").(*pkg.PostgresRepository)
+	srv := h.Container().Get(service.ServiceSrv).(*service.Srv)
+	serializer := srv.GetServiceLocator().Get(pkg.SerializerService).(*pkg.Serializer)
+	repo := srv.GetServiceLocator().Get(repository.SrvRepositoryService).(*repository.SrvRepository)
+	postgres := repo.GetServiceLocator().Get(pkg.PostgresService).(*pkg.PostgresRepository)
 
-	fmt.Println(simple)
+	fmt.Println(srv)
 
 	ctx := r.Context()
 
