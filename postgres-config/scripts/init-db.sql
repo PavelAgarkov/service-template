@@ -1,0 +1,3 @@
+CREATE DATABASE habrdb;
+CREATE USER habrpguser WITH PASSWORD 'pgpwd4habr';
+GRANT ALL PRIVILEGES ON DATABASE habrdb TO habrpguser;
