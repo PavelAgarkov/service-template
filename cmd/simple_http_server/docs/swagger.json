@@ -1,0 +1,79 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Это пример HTTP-сервера с документацией Swagger.",
+        "title": "Simple HTTP Server API",
+        "contact": {
+            "name": "Поддержка API",
+            "url": "http://example.com/support",
+            "email": "support@example.com"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:3000",
+    "basePath": "/",
+    "paths": {
+        "/empty": {
+            "post": {
+                "description": "Handles an empty request and returns a response",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "empty"
+                ],
+                "summary": "Empty endpoint",
+                "parameters": [
+                    {
+                        "description": "Empty request",
+                        "name": "empty",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.EmptyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.EmptyRequest"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "408": {
+                        "description": "Request Timeout",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "handler.EmptyRequest": {
+            "type": "object",
+            "properties": {
+                "age": {
+                    "type": "integer"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

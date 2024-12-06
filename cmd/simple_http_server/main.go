@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"service-template/application"
+	_ "service-template/cmd/simple_http_server/docs"
 	"service-template/internal"
 	"service-template/internal/handler"
 	"service-template/internal/repository"
@@ -16,6 +18,14 @@ import (
 	"syscall"
 )
 
+// @title Simple HTTP Server API
+// @version 1.0
+// @description Это пример HTTP-сервера с документацией Swagger.
+// @contact.name Поддержка API
+// @contact.url http://example.com/support
+// @contact.email support@example.com
+// @host localhost:3000
+// @BasePath /
 func main() {
 	father, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -52,14 +62,6 @@ func main() {
 	)
 	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
 
-	simpleHttpServerShutdownFunction2 := server.CreateHttpServer(
-		handlerList(handlers),
-		":3001",
-		server.RecoverMiddleware,
-		server.LoggingMiddleware,
-	)
-	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction2, 0)
-
 	<-father.Done()
 	app.Stop()
 	log.Printf("app is shutting down")
@@ -67,6 +69,8 @@ func main() {
 
 func handlerList(handlers *handler.Handlers) func(simple *server.SimpleHTTPServer) {
 	return func(simple *server.SimpleHTTPServer) {
-		simple.Router.Handle("/", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")
+		// http://localhost:3000/swagger/index.html
+		simple.Router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+		simple.Router.Handle("/empty", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")
 	}
 }

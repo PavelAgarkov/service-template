@@ -50,13 +50,12 @@ func (c *Container) Set(key string, cnt any, services ...string) *Container {
 		if is {
 			newLocator := c.NewServiceLocator(services...)
 			containerized.SetServiceLocator(newLocator)
-			c.container[key] = containerized
 		} else {
 			log.Fatalf("Service %s not found", service)
 		}
-	} else {
-		c.container[key] = cnt
 	}
+	c.container[key] = containerized
+
 	return c
 }
 
