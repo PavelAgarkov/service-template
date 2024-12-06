@@ -1,0 +1,52 @@
+basePath: /
+definitions:
+  handler.EmptyRequest:
+    properties:
+      age:
+        type: integer
+      email:
+        type: string
+      name:
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact:
+    email: support@example.com
+    name: Поддержка API
+    url: http://example.com/support
+  description: Это пример HTTP-сервера с документацией Swagger.
+  title: Simple HTTP Server API
+  version: "1.0"
+paths:
+  /empty:
+    post:
+      consumes:
+      - application/json
+      description: Handles an empty request and returns a response
+      parameters:
+      - description: Empty request
+        in: body
+        name: empty
+        required: true
+        schema:
+          $ref: '#/definitions/handler.EmptyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.EmptyRequest'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "408":
+          description: Request Timeout
+          schema:
+            type: string
+      summary: Empty endpoint
+      tags:
+      - empty
+swagger: "2.0"

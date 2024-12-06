@@ -2,20 +2,31 @@ package main
 
 import (
 	"context"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"net/http"
 	"os"
 	"os/signal"
 	"service-template/application"
+	_ "service-template/cmd/simple_http_server/docs"
 	"service-template/internal"
 	"service-template/internal/config"
 	"service-template/internal/handler"
 	"service-template/internal/logger"
+	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
 	"service-template/server"
 	"syscall"
 )
 
+// @title Simple HTTP Server API
+// @version 1.0
+// @description Это пример HTTP-сервера с документацией Swagger.
+// @contact.name Поддержка API
+// @contact.url http://example.com/support
+// @contact.email support@example.com
+// @host localhost:3000
+// @BasePath /
 func main() {
 	father, cancel := context.WithCancel(context.Background())
 	father = logger.WithCtx(father, logger.Get())
@@ -35,16 +46,16 @@ func main() {
 	}()
 
 	app := application.NewApp()
-	serializer := pkg.NewSerializer()
 
 	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
-	//srv := service.NewSrv()
 
-	container := internal.NewContainer().
-		Set("serializer", serializer).
-		Set("postgres", postgres).
-		Set("service.simple", service.NewSrv(), "serializer", "postgres")
+	container := internal.NewContainer(
+		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
+		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
+	).
+		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
+		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService)
 
 	handlers := handler.NewHandlers(container)
 
@@ -56,14 +67,6 @@ func main() {
 	)
 	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
 
-	simpleHttpServerShutdownFunction2 := server.CreateHttpServer(
-		handlerList(handlers),
-		":3001",
-		server.RecoverMiddleware,
-		server.LoggingMiddleware,
-	)
-	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction2, 0)
-
 	<-father.Done()
 	app.Stop()
 	logger.FromCtx(father).Info("app is shutting down")
@@ -71,6 +74,8 @@ func main() {
 
 func handlerList(handlers *handler.Handlers) func(simple *server.SimpleHTTPServer) {
 	return func(simple *server.SimpleHTTPServer) {
-		simple.Router.Handle("/", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")
+		// http://localhost:3000/swagger/index.html
+		simple.Router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+		simple.Router.Handle("/empty", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")
 	}
 }

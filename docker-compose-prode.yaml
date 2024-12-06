@@ -1,45 +1,45 @@
 services:
-#  node:
-#    container_name: 'node-local'
-#    stdin_open: true
-#    tty: true
-#    image: node:18
-#    working_dir: /www/pdf/pdf-frontend
-#    user: node
-#    volumes:
-#      - ..:/www
-#    ports:
-#      - "0.0.0.0:9499:9499"
-#    networks:
-#      - node-net
-
-#  proxy:
-#    restart: always
-#    image: jwilder/nginx-proxy
-#    volumes:
-#      - .:/var/www/pdf
-#      - ./proxy/hosts:/etc/hosts
-#      - /var/run/docker.sock:/tmp/docker.sock
-#      - ./proxy/my_nginx.conf:/etc/nginx/conf.d/my_nginx.conf
-#    ports:
-#      - "80:81"
-#      - "443:444"
-#    networks:
-#      - pdf-net
-#    depends_on:
-#      - backend
-
-#  backend:
-#    restart: always
-#    build: .
-#    volumes:
-#      - ..:/www/src
-#    command: ./pdf
-#    working_dir: /www/src/pdf
-#    ports:
-#      - "0.0.0.0:3000:3000"
-#    networks:
-#      - pdf-net
+  #  node:
+  #    container_name: 'node-local'
+  #    stdin_open: true
+  #    tty: true
+  #    image: node:18
+  #    working_dir: /www/pdf/pdf-frontend
+  #    user: node
+  #    volumes:
+  #      - ..:/www
+  #    ports:
+  #      - "0.0.0.0:9499:9499"
+  #    networks:
+  #      - node-net
+  
+  #  proxy:
+  #    restart: always
+  #    image: jwilder/nginx-proxy
+  #    volumes:
+  #      - .:/var/www/pdf
+  #      - ./proxy/hosts:/etc/hosts
+  #      - /var/run/docker.sock:/tmp/docker.sock
+  #      - ./proxy/my_nginx.conf:/etc/nginx/conf.d/my_nginx.conf
+  #    ports:
+  #      - "80:81"
+  #      - "443:444"
+  #    networks:
+  #      - pdf-net
+  #    depends_on:
+  #      - backend
+  
+  #  backend:
+  #    restart: always
+  #    build: .
+  #    volumes:
+  #      - ..:/www/src
+  #    command: ./pdf
+  #    working_dir: /www/src/pdf
+  #    ports:
+  #      - "0.0.0.0:3000:3000"
+  #    networks:
+  #      - pdf-net
   
   #https://habr.com/ru/articles/578744/
   postgres:

@@ -1,27 +1,31 @@
 package service
 
-import "service-template/internal"
+import (
+	"service-template/internal"
+)
+
+const ServiceSrv = "srv"
 
 type Service interface {
 	Get() string
 }
 
 type Srv struct {
-	container internal.ContainerInterface
+	locator internal.LocatorInterface
 }
 
 func NewSrv() *Srv {
 	return &Srv{}
 }
 
-func (simple *Srv) Get() string {
+func (srv *Srv) Get() string {
 	return "22"
 }
 
-func (simple *Srv) SetServiceLocator(container internal.ContainerInterface) {
-	simple.container = container
+func (srv *Srv) SetServiceLocator(container internal.LocatorInterface) {
+	srv.locator = container
 }
 
-func (simple *Srv) GetServiceLocator() internal.ContainerInterface {
-	return simple.container
+func (srv *Srv) GetServiceLocator() internal.LocatorInterface {
+	return srv.locator
 }
