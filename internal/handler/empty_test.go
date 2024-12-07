@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"service-template/internal"
+	"service-template/internal/repository"
+	"service-template/internal/service"
 	"service-template/pkg"
 	"testing"
 )
@@ -21,10 +23,15 @@ func TestEmptyHandler(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, "/", bytes.NewBuffer(reqBody))
 	assert.NoError(t, err)
 
-	container := internal.NewContainer().
-		Set("serializer", pkg.NewSerializer()).
-		Set("postgres", nil).
-		Set("service.simple", nil)
+	postgres, _ := pkg.NewPostgres("0.0.0.0", "5433", "habrpguser", "pgpwd4habr", "habrdb", "disable")
+
+	container := internal.NewContainer(
+		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
+		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
+	).
+		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
+		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService)
+
 	handlers := NewHandlers(container)
 
 	rr := httptest.NewRecorder()
