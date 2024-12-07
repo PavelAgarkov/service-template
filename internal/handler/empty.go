@@ -39,7 +39,6 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	l := logger.FromCtx(ctx)
-	l.Debug(fmt.Sprintf("%v", simple))
 
 	empty := &EmptyRequest{}
 	err := serializer.Deserialize(r, empty)
