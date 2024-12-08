@@ -1,4 +1,4 @@
-package handler
+package http_handler
 
 import (
 	"service-template/internal"

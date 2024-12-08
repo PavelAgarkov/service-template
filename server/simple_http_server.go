@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -35,7 +36,7 @@ type SimpleHTTPServer struct {
 	Router *mux.Router
 }
 
-func NewSimpleHTTPServer(port string) *SimpleHTTPServer {
+func newSimpleHTTPServer(port string) *SimpleHTTPServer {
 	return &SimpleHTTPServer{
 		Router: mux.NewRouter(),
 		port:   port,
@@ -52,9 +53,14 @@ func (simple *SimpleHTTPServer) RunSimpleHTTPServer(mwf ...mux.MiddlewareFunc) f
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Recovered from panic: %v on server %v", r, simple.port)
+			}
+		}()
 		log.Printf("Server is running on %s", simple.port)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Server stopped by error: %s", err)
+			panic(fmt.Sprintf("Server stopped by error: %s", err))
 		}
 		log.Printf("Server has stopped")
 	}()
@@ -66,6 +72,7 @@ func (simple *SimpleHTTPServer) ToConfigureHandlers(configure func(simple *Simpl
 	configure(simple)
 }
 
+// Shutdown gracefully shuts down the server without interrupting any active connections.
 func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 	return func() {
 		log.Println("Shutting down the server...")
@@ -84,7 +91,7 @@ func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 }
 
 func CreateHttpServer(fn func(simple *SimpleHTTPServer), port string, mwf ...mux.MiddlewareFunc) func() {
-	serverHttp := NewSimpleHTTPServer(port)
+	serverHttp := newSimpleHTTPServer(port)
 	serverHttp.ToConfigureHandlers(fn)
 	simpleHttpServerShutdownFunction := serverHttp.RunSimpleHTTPServer(mwf...)
 	return simpleHttpServerShutdownFunction

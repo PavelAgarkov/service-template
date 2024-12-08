@@ -10,7 +10,7 @@ import (
 	"service-template/application"
 	_ "service-template/cmd/simple_http_server/docs"
 	"service-template/internal"
-	"service-template/internal/handler"
+	"service-template/internal/http_handler"
 	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
@@ -52,7 +52,7 @@ func main() {
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
 		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService)
 
-	handlers := handler.NewHandlers(container)
+	handlers := http_handler.NewHandlers(container)
 
 	simpleHttpServerShutdownFunction := server.CreateHttpServer(
 		handlerList(handlers),
@@ -67,10 +67,12 @@ func main() {
 	log.Printf("app is shutting down")
 }
 
-func handlerList(handlers *handler.Handlers) func(simple *server.SimpleHTTPServer) {
+func handlerList(handlers *http_handler.Handlers) func(simple *server.SimpleHTTPServer) {
 	return func(simple *server.SimpleHTTPServer) {
 		// http://localhost:3000/swagger/index.html
 		simple.Router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 		simple.Router.Handle("/empty", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")
+		//router.HandleFunc("/user/{id}/posts/{postId}", GetPostHandler).Methods("GET")
+		//router.HandleFunc("/user/{id:[0-9]+}/posts/{postId:[0-9]+}", GetPostHandler).Methods("POST")
 	}
 }
