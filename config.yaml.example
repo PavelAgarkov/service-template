@@ -1,0 +1,8 @@
+http:
+  port: 3000
+db:
+  host: "0.0.0.0"
+  port: "5432"
+  username: habrpguser
+  password: pgpwd4habr
+  database: habrdb
