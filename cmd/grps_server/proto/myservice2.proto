@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package myservice2;
+
+//    protoc --go_out=./cmd/grps_server/pb --go-grpc_out=./cmd/grps_server/pb ./cmd/grps_server/proto/myservice2.proto
+
+option go_package = "myservice2/pb;myservice2";
+
+service MyService {
+  rpc SayHello (HelloRequest) returns (HelloReply);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}

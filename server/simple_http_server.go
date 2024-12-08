@@ -83,7 +83,7 @@ type SimpleHTTPServer struct {
 	Router *mux.Router
 }
 
-func NewSimpleHTTPServer(port string) *SimpleHTTPServer {
+func newSimpleHTTPServer(port string) *SimpleHTTPServer {
 	return &SimpleHTTPServer{
 		Router: mux.NewRouter(),
 		port:   port,
@@ -101,9 +101,14 @@ func (simple *SimpleHTTPServer) RunSimpleHTTPServer(mwf ...mux.MiddlewareFunc) f
 
 	go func() {
 		l := logger.Get()
+		defer func() {
+			if r := recover(); r != nil {
+				l.Error(fmt.Sprintf("Recovered from panic: %v on server %v", r, simple.port))
+			}
+		}()
 		l.Info(fmt.Sprintf("Server is running on %s", simple.port))
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Server stopped by error: %s", err)
+			panic(fmt.Sprintf("Server stopped by error: %s", err))
 		}
 		l.Info("Server has stopped")
 	}()
@@ -115,6 +120,7 @@ func (simple *SimpleHTTPServer) ToConfigureHandlers(configure func(simple *Simpl
 	configure(simple)
 }
 
+// Shutdown gracefully shuts down the server without interrupting any active connections.
 func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 	return func() {
 		l := logger.Get()
@@ -127,14 +133,14 @@ func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 		// после этого сервер будет остановлен
 		// если необходимо остановить сервер сразу, то использовать server.Close()
 		if err := server.Shutdown(ctx); err != nil {
-			l.Info(fmt.Sprintf("Server shutdown failed: %s", err))
+			l.Error(fmt.Sprintf("Server shutdown failed: %s", err))
 		}
 		l.Info(fmt.Sprintf("Server has done: %s", simple.port))
 	}
 }
 
 func CreateHttpServer(fn func(simple *SimpleHTTPServer), port string, mwf ...mux.MiddlewareFunc) func() {
-	serverHttp := NewSimpleHTTPServer(port)
+	serverHttp := newSimpleHTTPServer(port)
 	serverHttp.ToConfigureHandlers(fn)
 	simpleHttpServerShutdownFunction := serverHttp.RunSimpleHTTPServer(mwf...)
 	return simpleHttpServerShutdownFunction

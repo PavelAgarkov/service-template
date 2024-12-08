@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package myservice;
+
+// protoc --version
+// libprotoc 25.1
+//1) myservice/pb;myservice"
+//2)protoc --go_out=./cmd/grps_server/pb --go-grpc_out=./cmd/grps_server/pb ./cmd/grps_server/proto/myservice.proto
+//3) cmd/grps_server/pb/myservice/pb
+//4) internal/grpc_handler/my_service.go
+//5) internal/grpc_handler/say_hello.go
+//6) main.go myservice.RegisterMyServiceServer(s, grpc_handler.NewMyService(container))
+option go_package = "myservice/pb;myservice";
+
+service MyService {
+  rpc SayHello (HelloRequest) returns (HelloReply);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}

@@ -1,4 +1,4 @@
-package handler
+package http_handler
 
 import (
 	"errors"
@@ -29,6 +29,10 @@ type EmptyRequest struct {
 // @Failure 408 {string} string "Request Timeout"
 // @Router /empty [post]
 func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
+
+	//vars := mux.Vars(r)
+	//id := vars["id"]
+
 	//serializer := h.Container().Get("serializer").(*pkg.Serializer)
 	//postgres := h.Container().Get("postgres").(*pkg.PostgresRepository)
 	srv := h.Container().Get(service.ServiceSrv).(*service.Srv)
