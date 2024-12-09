@@ -1,11 +1,21 @@
 #!/bin/bash
 
 function info() {
-  echo "unit_project - первый запуск проекта"
-  echo "build_protoc - сборка protoc контейнера"
-  echo "rebuild_pb - пересборка pb для спецификаций"
-  echo "remove_old_pb - remove old pb"
-  echo "build_swagger_docs - собрать swagger спецификации"
+  echo -e "\e[30;47m build_protoc\e[0m - сборка protoc контейнера"
+  echo -e "\e[30;47m rebuild_pb\e[0m - пересборка pb"
+  echo -e "\e[30;47m remove_old_pb\e[0m - удаление старых pb"
+  echo -e "\e[30;47m run_tests\e[0m - запуск тестов"
+  echo -e "\e[30;47m start_containers\e[0m - запуск контейнеров"
+  echo -e "\e[30;47m stop_containers\e[0m - остановка контейнеров"
+  echo -e "\e[30;47m create_goose_migration\e[0m - создание миграции goose"
+  echo -e "\e[30;47m run_goose_migration\e[0m - запуск миграций goose"
+  echo -e "\e[30;47m run_goose_migration_down\e[0m - откат миграций goose"
+  echo -e "\e[30;47m init_project\e[0m - инициализация проекта"
+  echo -e "\e[30;47m build_swagger_docs\e[0m - сборка swagger документации"
+}
+
+function run_tests() {
+    go test ./...
 }
 
 function start_containers() {
@@ -35,9 +45,15 @@ function run_goose_migration_down() {
 
 function init_project() {
     build_protoc  && \
+    echo -e "\e[30;43m protoc builded\e[0m" && \
   rebuild_pb && \
+  echo -e "\e[30;43m pb rebuilded\e[0m" && \
   build_swagger_docs && \
-  go install github.com/pressly/goose/v3/cmd/goose@latest
+  echo -e "\e[30;43m swagger docs builded\e[0m" && \
+  go install github.com/pressly/goose/v3/cmd/goose@latest && \
+  echo -e "\e[30;43m goose installed\e[0m" && \
+  run_goose_migration && \
+  echo -e "\e[30;43m goose migrations runned\e[0m"
 }
 
 function build_swagger_docs() {
@@ -62,22 +78,6 @@ function remove_old_pb() {
     sudo rm -rf cmd/grps_server/pb/myservice2 && \
         sudo rm -rf cmd/grps_server/pb/myservice
 }
-
-## Проверяем, передан ли аргумент
-#if [ -z "$1" ]; then
-#    echo "Usage: $0 <function_name>"
-#    echo "Available functions: hello, goodbye, current_time"
-#    exit 1
-#fi
-#
-## Вызываем функцию по имени, если она существует
-#if declare -f "$1" > /dev/null; then
-#    "$1" # Вызов функции по имени
-#else
-#    echo "Error: Function '$1' not found."
-#    echo "Available functions: hello, goodbye, current_time"
-#    exit 1
-#fi
 
 # Проверяем, передан ли аргумент
 if [ -z "$1" ]; then
