@@ -8,10 +8,36 @@ function info() {
   echo "build_swagger_docs - собрать swagger спецификации"
 }
 
-function unit_project() {
+function start_containers() {
+    docker compose -f docker-compose-prode.yaml up
+}
+
+function stop_containers() {
+    docker compose -f docker-compose-prode.yaml down
+}
+
+function create_goose_migration() {
+    if [ -z "$1" ]; then
+        echo "Error: You must provide a migration name."
+        echo "Usage: create_goose_migration <migration_name>"
+        exit 1
+    fi
+    goose -dir ./migrations create "$1" sql
+}
+
+function run_goose_migration() {
+    goose -dir migrations postgres "host=0.0.0.0 user=habrpguser password=pgpwd4habr dbname=habrdb sslmode=disable" up
+}
+
+function run_goose_migration_down() {
+    goose -dir migrations postgres "host=0.0.0.0 user=habrpguser password=pgpwd4habr dbname=habrdb sslmode=disable" down
+}
+
+function init_project() {
     build_protoc  && \
   rebuild_pb && \
-  build_swagger_docs
+  build_swagger_docs && \
+  go install github.com/pressly/goose/v3/cmd/goose@latest
 }
 
 function build_swagger_docs() {
@@ -37,18 +63,36 @@ function remove_old_pb() {
         sudo rm -rf cmd/grps_server/pb/myservice
 }
 
+## Проверяем, передан ли аргумент
+#if [ -z "$1" ]; then
+#    echo "Usage: $0 <function_name>"
+#    echo "Available functions: hello, goodbye, current_time"
+#    exit 1
+#fi
+#
+## Вызываем функцию по имени, если она существует
+#if declare -f "$1" > /dev/null; then
+#    "$1" # Вызов функции по имени
+#else
+#    echo "Error: Function '$1' not found."
+#    echo "Available functions: hello, goodbye, current_time"
+#    exit 1
+#fi
+
 # Проверяем, передан ли аргумент
 if [ -z "$1" ]; then
-    echo "Usage: $0 <function_name>"
-    echo "Available functions: hello, goodbye, current_time"
+    echo "Usage: $0 <function_name> [args...]"
+    echo "Available functions: info, start_containers, stop_containers, create_goose_migration, etc."
     exit 1
 fi
 
 # Вызываем функцию по имени, если она существует
 if declare -f "$1" > /dev/null; then
-    "$1" # Вызов функции по имени
+    # Передаем все последующие аргументы в функцию
+    "$@"
 else
     echo "Error: Function '$1' not found."
-    echo "Available functions: hello, goodbye, current_time"
+    echo "Available functions: info, start_containers, stop_containers, create_goose_migration, etc."
     exit 1
 fi
+

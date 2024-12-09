@@ -41,9 +41,15 @@ func main() {
 	}()
 
 	app := application.NewApp()
+	defer func() {
+		app.Stop()
+		log.Printf("app is stopped")
+	}()
 
 	postgres, postgresShutdown := pkg.NewPostgres("0.0.0.0", "habrpguser", "habrdb", "pgpwd4habr", "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
+
+	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations")
 
 	container := internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
@@ -63,8 +69,6 @@ func main() {
 	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
 
 	<-father.Done()
-	app.Stop()
-	log.Printf("app is shutting down")
 }
 
 func handlerList(handlers *http_handler.Handlers) func(simple *server.SimpleHTTPServer) {
