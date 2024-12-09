@@ -6,7 +6,6 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 type MyGRPCServer struct {
@@ -30,7 +29,7 @@ func (s *MyGRPCServer) Start(registerServices func(*grpc.Server)) func() {
 	registerServices(s.server)
 
 	// Включаем reflection (для gRPC клиентов вроде evans).
-	reflection.Register(s.server)
+	//reflection.Register(s.server)
 
 	listener, err := net.Listen("tcp", s.port)
 	if err != nil {

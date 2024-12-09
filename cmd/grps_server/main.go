@@ -43,12 +43,15 @@ func main() {
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
 		Set(service.ServiceSrv, service.NewSrv(), repository.SrvRepositoryService)
 
-	shutdown := server.CreateGRPCServer(func(s *grpc.Server) {
-		myservice.RegisterMyServiceServer(s, grpc_handler.NewMyService(container))
-		myservice2.RegisterMyServiceServer(s, grpc_handler.NewMyService2(container))
-	}, ":50051")
+	gRPCShutdown := server.CreateGRPCServer(
+		func(s *grpc.Server) {
+			myservice.RegisterMyServiceServer(s, grpc_handler.NewMyService(container))
+			myservice2.RegisterMyServiceServer(s, grpc_handler.NewMyService2(container))
+		},
+		":50051",
+	)
 
-	app.RegisterShutdown("gRPC server", shutdown, 1)
+	app.RegisterShutdown("gRPC server", gRPCShutdown, 1)
 
 	<-father.Done()
 	app.Stop()
