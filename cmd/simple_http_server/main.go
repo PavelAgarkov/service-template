@@ -74,8 +74,6 @@ func main() {
 	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
 
 	<-father.Done()
-	app.Stop()
-	logger.FromCtx(father).Info("app is shutting down")
 }
 
 func handlerList(handlers *http_handler.Handlers) func(simple *server.SimpleHTTPServer) {
