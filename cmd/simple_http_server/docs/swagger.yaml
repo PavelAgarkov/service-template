@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  handler.EmptyRequest:
+  http_handler.EmptyRequest:
     properties:
       age:
         type: integer
@@ -30,14 +30,14 @@ paths:
         name: empty
         required: true
         schema:
-          $ref: '#/definitions/handler.EmptyRequest'
+          $ref: '#/definitions/http_handler.EmptyRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.EmptyRequest'
+            $ref: '#/definitions/http_handler.EmptyRequest'
         "400":
           description: Bad Request
           schema:

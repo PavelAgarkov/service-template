@@ -39,7 +39,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.EmptyRequest"
+                            "$ref": "#/definitions/http_handler.EmptyRequest"
                         }
                     }
                 ],
@@ -47,7 +47,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.EmptyRequest"
+                            "$ref": "#/definitions/http_handler.EmptyRequest"
                         }
                     },
                     "400": {
@@ -67,7 +67,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "handler.EmptyRequest": {
+        "http_handler.EmptyRequest": {
             "type": "object",
             "properties": {
                 "age": {

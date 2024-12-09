@@ -46,9 +46,15 @@ func main() {
 	}()
 
 	app := application.NewApp()
+	defer func() {
+		app.Stop()
+		logger.FromCtx(father).Info("app is stopped")
+	}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
+
+	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations")
 
 	container := internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},

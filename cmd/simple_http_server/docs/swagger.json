@@ -33,7 +33,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.EmptyRequest"
+                            "$ref": "#/definitions/http_handler.EmptyRequest"
                         }
                     }
                 ],
@@ -41,7 +41,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.EmptyRequest"
+                            "$ref": "#/definitions/http_handler.EmptyRequest"
                         }
                     },
                     "400": {
@@ -61,7 +61,7 @@
         }
     },
     "definitions": {
-        "handler.EmptyRequest": {
+        "http_handler.EmptyRequest": {
             "type": "object",
             "properties": {
                 "age": {

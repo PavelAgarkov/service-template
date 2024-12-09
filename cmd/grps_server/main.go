@@ -34,23 +34,31 @@ func main() {
 	}()
 
 	app := application.NewApp()
+	defer func() {
+		app.Stop()
+		log.Printf("app is stopped")
+	}()
 
 	postgres, postgresShutdown := pkg.NewPostgres("0.0.0.0", "habrpguser", "habrdb", "pgpwd4habr", "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
+
+	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations")
+
 	container := internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
 		Set(service.ServiceSrv, service.NewSrv(), repository.SrvRepositoryService)
 
-	shutdown := server.CreateGRPCServer(func(s *grpc.Server) {
-		myservice.RegisterMyServiceServer(s, grpc_handler.NewMyService(container))
-		myservice2.RegisterMyServiceServer(s, grpc_handler.NewMyService2(container))
-	}, ":50051")
+	gRPCShutdown := server.CreateGRPCServer(
+		func(s *grpc.Server) {
+			myservice.RegisterMyServiceServer(s, grpc_handler.NewMyService(container))
+			myservice2.RegisterMyServiceServer(s, grpc_handler.NewMyService2(container))
+		},
+		":50051",
+	)
 
-	app.RegisterShutdown("gRPC server", shutdown, 1)
+	app.RegisterShutdown("gRPC server", gRPCShutdown, 1)
 
 	<-father.Done()
-	app.Stop()
-	log.Printf("app is shutting down")
 }
