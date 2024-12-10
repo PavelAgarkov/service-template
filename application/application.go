@@ -2,7 +2,7 @@ package application
 
 import (
 	"fmt"
-	"service-template/internal/logger"
+	"service-template/pkg"
 	"sync"
 )
 
@@ -82,7 +82,7 @@ func (a *App) GetAllRegisteredShutdown() *LinkedList {
 // shutdownAll shuts down all registered shutdown functions.
 func (a *App) shutdownAllAndDeleteAllCanceled() {
 	a.shutdownRWM.Lock()
-	l := logger.Get()
+	l := pkg.GetLogger()
 	defer a.shutdownRWM.Unlock()
 	for a.shutdown.Node != nil {
 		a.shutdown.Node.shutdownFunc()
@@ -93,7 +93,7 @@ func (a *App) shutdownAllAndDeleteAllCanceled() {
 
 // Stop stops the application.
 func (a *App) Stop() {
-	l := logger.Get()
+	l := pkg.GetLogger()
 	l.Info("Stop()")
 	a.shutdownAllAndDeleteAllCanceled()
 }

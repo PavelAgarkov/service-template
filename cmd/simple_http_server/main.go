@@ -8,10 +8,9 @@ import (
 	"os/signal"
 	"service-template/application"
 	_ "service-template/cmd/simple_http_server/docs"
+	"service-template/config"
 	"service-template/internal"
-	"service-template/internal/config"
 	"service-template/internal/http_handler"
-	"service-template/internal/logger"
 	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
@@ -29,10 +28,10 @@ import (
 // @BasePath /
 func main() {
 	father, cancel := context.WithCancel(context.Background())
-	father = logger.WithCtx(father, logger.Get())
+	father = pkg.LoggerWithCtx(father, pkg.GetLogger())
 	defer cancel()
 
-	logger.FromCtx(father).Info("config initializing")
+	pkg.LoggerFromCtx(father).Info("config initializing")
 	cfg := config.GetConfig()
 
 	sig := make(chan os.Signal, 1)
@@ -41,14 +40,14 @@ func main() {
 
 	go func() {
 		<-sig
-		logger.FromCtx(father).Info("Signal received. Shutting down server...")
+		pkg.LoggerFromCtx(father).Info("Signal received. Shutting down server...")
 		cancel()
 	}()
 
 	app := application.NewApp()
 	defer func() {
 		app.Stop()
-		logger.FromCtx(father).Info("app is stopped")
+		pkg.LoggerFromCtx(father).Info("app is stopped")
 	}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")
@@ -68,6 +67,7 @@ func main() {
 	simpleHttpServerShutdownFunction := server.CreateHttpServer(
 		handlerList(handlers),
 		":3000",
+		server.LoggerContextMiddleware,
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
 	)

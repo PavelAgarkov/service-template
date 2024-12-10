@@ -69,15 +69,23 @@ const docTemplate = `{
     "definitions": {
         "http_handler.EmptyRequest": {
             "type": "object",
+            "required": [
+                "email",
+                "name"
+            ],
             "properties": {
                 "age": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 120,
+                    "minimum": 18
                 },
                 "email": {
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 5
                 }
             }
         }

@@ -7,35 +7,37 @@ import (
 	"sync"
 )
 
-type Config struct {
-	HTTP struct {
-		Port string `yaml:"port"`
-	}
-	DB struct {
-		Host     string `yaml:"host"`
-		Port     string `yaml:"port"`
-		Username string `yaml:"username"`
-		Password string `yaml:"password"`
-		Database string `yaml:"database"`
-	}
+type DBConfig struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Database string `yaml:"database"`
 }
 
-var configPath string
+type Config struct {
+	configPath string
+	HTTP       struct {
+		Port string `yaml:"port"`
+	}
+	DB DBConfig
+}
+
 var instance *Config
 var once sync.Once
 
 func GetConfig() *Config {
 	once.Do(func() {
+		instance = &Config{}
 		flag.StringVar(
-			&configPath,
+			&instance.configPath,
 			"config",
 			"config.yaml",
 			"this is app config file",
 		)
 		flag.Parse()
 
-		instance = &Config{}
-		if err := cleanenv.ReadConfig(configPath, instance); err != nil {
+		if err := cleanenv.ReadConfig(instance.configPath, instance); err != nil {
 			log.Fatal(err)
 		}
 	})

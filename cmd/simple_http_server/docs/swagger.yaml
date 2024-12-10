@@ -3,11 +3,18 @@ definitions:
   http_handler.EmptyRequest:
     properties:
       age:
+        maximum: 120
+        minimum: 18
         type: integer
       email:
         type: string
       name:
+        maxLength: 20
+        minLength: 5
         type: string
+    required:
+    - email
+    - name
     type: object
 host: localhost:3000
 info:

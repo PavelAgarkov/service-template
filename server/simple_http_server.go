@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 	"log"
 	"net/http"
-	"service-template/internal/logger"
+	"service-template/pkg"
 	"time"
 )
 
@@ -28,10 +28,18 @@ func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
 	return &loggingResponseWriter{w, http.StatusOK}
 }
 
+func LoggerContextMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		r = r.WithContext(pkg.LoggerWithCtx(ctx, pkg.GetLogger()))
+		lrw := newLoggingResponseWriter(w)
+		next.ServeHTTP(lrw, r)
+	})
+
+}
+
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		l := logger.Get()
-
 		correlationID := xid.New().String()
 
 		ctx := context.WithValue(
@@ -41,12 +49,13 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 		)
 
 		r = r.WithContext(ctx)
+		l := pkg.LoggerFromCtx(r.Context())
 
 		l = l.With(zap.String(string(correlationIDCtxKey), correlationID))
 		w.Header().Add("X-Correlation-ID", correlationID)
 
 		lrw := newLoggingResponseWriter(w)
-		r = r.WithContext(logger.WithCtx(ctx, l))
+		r = r.WithContext(pkg.LoggerWithCtx(ctx, l))
 
 		defer func(start time.Time) {
 			l.Info(
@@ -100,7 +109,7 @@ func (simple *SimpleHTTPServer) RunSimpleHTTPServer(mwf ...mux.MiddlewareFunc) f
 	}
 
 	go func() {
-		l := logger.Get()
+		l := pkg.GetLogger()
 		defer func() {
 			if r := recover(); r != nil {
 				l.Error(fmt.Sprintf("Recovered from panic: %v on server %v", r, simple.port))
@@ -123,7 +132,7 @@ func (simple *SimpleHTTPServer) ToConfigureHandlers(configure func(simple *Simpl
 // Shutdown gracefully shuts down the server without interrupting any active connections.
 func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 	return func() {
-		l := logger.Get()
+		l := pkg.GetLogger()
 		l.Info("Shutting down the server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

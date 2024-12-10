@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"net/http"
-	"service-template/internal/logger"
 	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
@@ -42,7 +41,7 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	l := logger.FromCtx(ctx)
+	l := pkg.LoggerFromCtx(ctx)
 
 	empty := &EmptyRequest{}
 	err := serializer.Deserialize(r, empty)

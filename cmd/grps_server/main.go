@@ -9,6 +9,7 @@ import (
 	"service-template/application"
 	myservice "service-template/cmd/grps_server/pb/myservice/pb"
 	myservice2 "service-template/cmd/grps_server/pb/myservice2/pb"
+	"service-template/config"
 	"service-template/internal"
 	"service-template/internal/grpc_handler"
 	"service-template/internal/repository"
@@ -27,6 +28,8 @@ func main() {
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(sig)
 
+	cfg := config.GetConfig()
+
 	go func() {
 		<-sig
 		log.Println("Signal received. Shutting down server...")
@@ -39,7 +42,7 @@ func main() {
 		log.Printf("app is stopped")
 	}()
 
-	postgres, postgresShutdown := pkg.NewPostgres("0.0.0.0", "habrpguser", "habrdb", "pgpwd4habr", "disable")
+	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
 
 	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations")
