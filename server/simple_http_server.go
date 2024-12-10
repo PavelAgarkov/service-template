@@ -5,17 +5,73 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/rs/xid"
+	"go.uber.org/zap"
 	"log"
 	"net/http"
+	"service-template/pkg"
 	"time"
 )
 
+type contextKey string
+
+const (
+	correlationIDCtxKey contextKey = "correlation_id"
+)
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
+	return &loggingResponseWriter{w, http.StatusOK}
+}
+
+func LoggerContextMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		r = r.WithContext(pkg.LoggerWithCtx(ctx, pkg.GetLogger()))
+		lrw := newLoggingResponseWriter(w)
+		next.ServeHTTP(lrw, r)
+	})
+
+}
+
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		log.Printf("Incoming request: %s %s", r.Method, r.URL.Path)
-		next.ServeHTTP(w, r)
-		log.Printf("Request processed in %s", time.Since(start))
+		correlationID := xid.New().String()
+
+		ctx := context.WithValue(
+			r.Context(),
+			correlationIDCtxKey,
+			correlationID,
+		)
+
+		r = r.WithContext(ctx)
+		l := pkg.LoggerFromCtx(r.Context())
+
+		l = l.With(zap.String(string(correlationIDCtxKey), correlationID))
+		w.Header().Add("X-Correlation-ID", correlationID)
+
+		lrw := newLoggingResponseWriter(w)
+		r = r.WithContext(pkg.LoggerWithCtx(ctx, l))
+
+		defer func(start time.Time) {
+			l.Info(
+				fmt.Sprintf(
+					"%s request to %s completed",
+					r.Method,
+					r.RequestURI,
+				),
+				zap.String("method", r.Method),
+				zap.String("url", r.RequestURI),
+				zap.String("user_agent", r.UserAgent()),
+				zap.Int("status_code", lrw.statusCode),
+				zap.Duration("elapsed_ms", time.Since(start)),
+			)
+		}(time.Now())
+		next.ServeHTTP(lrw, r)
 	})
 }
 
@@ -53,16 +109,17 @@ func (simple *SimpleHTTPServer) RunSimpleHTTPServer(mwf ...mux.MiddlewareFunc) f
 	}
 
 	go func() {
+		l := pkg.GetLogger()
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("Recovered from panic: %v on server %v", r, simple.port)
+				l.Error(fmt.Sprintf("Recovered from panic: %v on server %v", r, simple.port))
 			}
 		}()
-		log.Printf("Server is running on %s", simple.port)
+		l.Info(fmt.Sprintf("Server is running on %s", simple.port))
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(fmt.Sprintf("Server stopped by error: %s", err))
 		}
-		log.Printf("Server has stopped")
+		l.Info("Server has stopped")
 	}()
 
 	return simple.Shutdown(server)
@@ -75,7 +132,8 @@ func (simple *SimpleHTTPServer) ToConfigureHandlers(configure func(simple *Simpl
 // Shutdown gracefully shuts down the server without interrupting any active connections.
 func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 	return func() {
-		log.Println("Shutting down the server...")
+		l := pkg.GetLogger()
+		l.Info("Shutting down the server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		// использовать server.Shutdown(ctx) вместо server.Close() для корректного завершения запросов
@@ -84,9 +142,9 @@ func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
 		// после этого сервер будет остановлен
 		// если необходимо остановить сервер сразу, то использовать server.Close()
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("Server shutdown failed: %s", err)
+			l.Error(fmt.Sprintf("Server shutdown failed: %s", err))
 		}
-		log.Printf("Server has done: %s", simple.port)
+		l.Info(fmt.Sprintf("Server has done: %s", simple.port))
 	}
 }
 

@@ -1,7 +1,9 @@
 package http_handler
 
 import (
+	"errors"
 	"fmt"
+	"github.com/go-playground/validator/v10"
 	"net/http"
 	"service-template/internal/repository"
 	"service-template/internal/service"
@@ -9,9 +11,9 @@ import (
 )
 
 type EmptyRequest struct {
-	Name  string `json:"name"`
-	Age   int    `json:"age"`
-	Email string `json:"email"`
+	Name  string `json:"name" validate:"required,min=5,max=20"`
+	Age   int    `json:"age" validate:"omitempty,gte=18,lte=120"`
+	Email string `json:"email" validate:"required,email"`
 }
 
 // EmptyHandler handles the empty endpoint.
@@ -37,9 +39,9 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 	repo := srv.GetServiceLocator().Get(repository.SrvRepositoryService).(*repository.SrvRepository)
 	postgres := repo.GetServiceLocator().Get(pkg.PostgresService).(*pkg.PostgresRepository)
 
-	fmt.Println(srv)
-
 	ctx := r.Context()
+
+	l := pkg.LoggerFromCtx(ctx)
 
 	empty := &EmptyRequest{}
 	err := serializer.Deserialize(r, empty)
@@ -52,15 +54,25 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 		serializer.ResponseJson(w, []byte(ctx.Err().Error()), http.StatusRequestTimeout)
 		return
 	}
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	err = validate.Struct(empty)
+	if err != nil {
+		var errs validator.ValidationErrors
+		errors.As(err, &errs)
+		serializer.ResponseJson(w, []byte(errs.Error()), http.StatusBadRequest)
+		return
+	}
 	row := postgres.GetDB().QueryRow("insert into user_p(id) values (1);")
-	err = row.Err()
-	fmt.Println(err)
+	if err = row.Err(); err != nil {
+		l.Error(err.Error())
+	}
 	row1 := postgres.GetDB().QueryRow("select count(*) from user_p")
-	err1 := row1.Err()
-	fmt.Println(err1)
+	if err = row1.Err(); err != nil {
+		l.Error(err.Error())
+	}
 	a := 0
 	row1.Scan(&a)
-	fmt.Println(a)
+	l.Debug(fmt.Sprintf("%v", a))
 
 	empty.Age = a
 
