@@ -1,47 +1,4 @@
 services:
-  #  node:
-  #    container_name: 'node-local'
-  #    stdin_open: true
-  #    tty: true
-  #    image: node:18
-  #    working_dir: /www/pdf/pdf-frontend
-  #    user: node
-  #    volumes:
-  #      - ..:/www
-  #    ports:
-  #      - "0.0.0.0:9499:9499"
-  #    networks:
-  #      - node-net
-  
-  #  proxy:
-  #    restart: always
-  #    image: jwilder/nginx-proxy
-  #    volumes:
-  #      - .:/var/www/pdf
-  #      - ./proxy/hosts:/etc/hosts
-  #      - /var/run/docker.sock:/tmp/docker.sock
-  #      - ./proxy/my_nginx.conf:/etc/nginx/conf.d/my_nginx.conf
-  #    ports:
-  #      - "80:81"
-  #      - "443:444"
-  #    networks:
-  #      - pdf-net
-  #    depends_on:
-  #      - backend
-  
-  #  backend:
-  #    restart: always
-  #    build: .
-  #    volumes:
-  #      - ..:/www/src
-  #    command: ./pdf
-  #    working_dir: /www/src/pdf
-  #    ports:
-  #      - "0.0.0.0:3000:3000"
-  #    networks:
-  #      - pdf-net
-  
-  #https://habr.com/ru/articles/578744/
   postgres:
     image: postgres:16
     environment:
@@ -61,7 +18,7 @@ services:
     command: >
       postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U habrpguser -d habrdb"]
+      test: [ "CMD-SHELL", "pg_isready -U habrpguser -d habrdb" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -72,12 +29,44 @@ services:
         limits:
           cpus: '1'
           memory: 4G
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"       # Порт для подключения клиентов
+      - "15672:15672"     # Порт для доступа к Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: user # Логин для доступа к Management UI
+      RABBITMQ_DEFAULT_PASS: password # Пароль для доступа к Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - service-template
+
+#RabbitMQ Management UI: http://localhost:15672 (логин: user, пароль: password).
+#Grafana: http://localhost:3000 (логин: admin, пароль: admin).
+
+  rabbitmq-monitor:
+    image: grafana/grafana:latest
+    container_name: rabbitmq_monitor
+    ports:
+      - "3111:3000"  # Порт для доступа к Grafana
+    depends_on:
+      - rabbitmq
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - service-template
 
 volumes:
+  rabbitmq_data:
+  grafana_data:
   habrdb-data:
 
 networks:
   service-template:
-    driver: bridge
-  node-net:
     driver: bridge
