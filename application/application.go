@@ -20,7 +20,6 @@ type Shutdown struct {
 type App struct {
 	shutdownRWM sync.RWMutex
 	shutdown    *LinkedList
-	//ctx         context.Context
 }
 
 func NewApp() *App {
