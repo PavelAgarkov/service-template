@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/streadway/amqp"
+	"golang.org/x/sync/errgroup"
 	"log"
 	"sync"
 	"time"
@@ -12,14 +13,25 @@ import (
 const RabbitMqService = "rabbitmq"
 
 type RabbitMQ struct {
-	Conn    *amqp.Connection
-	Channel *amqp.Channel
+	Conn           *amqp.Connection
+	Channel        *amqp.Channel
+	returnsChannel chan amqp.Return // Канал для возвратов
 }
 
-func NewRabbitMq(connectionString string) (*RabbitMQ, func()) {
-	rmq := &RabbitMQ{}
+func NewRabbitMq(ctx context.Context, connectionString string, fallbackProducer func(ctx context.Context, ret amqp.Return) error) (*RabbitMQ, func()) {
+	rmq := &RabbitMQ{
+		returnsChannel: make(chan amqp.Return), // Инициализация канала возвратов
+	}
+
 	_, closer := rmq.build(connectionString)
-	return rmq, closer
+	rmq.Channel.NotifyReturn(rmq.returnsChannel) // Установка канала возвратов
+
+	// Запуск обработчика возвратов
+	go rmq.handleReturns(ctx, fallbackProducer)
+
+	return rmq, func() {
+		closer() // Закрываем соединение и канал
+	}
 }
 
 func (rmq *RabbitMQ) build(connectionString string) (*RabbitMQ, func()) {
@@ -71,20 +83,61 @@ func (rmq *RabbitMQ) connectToRabbitMQ(url string) (*amqp.Connection, error, fun
 	}
 }
 
-func (rmq *RabbitMQ) Producer(queue *amqp.Queue, message string) error {
+func (rmq *RabbitMQ) Producer(queueName string, exchange string, message string, mandatory bool, immediate bool, contentType string) error {
 	err := rmq.Channel.Publish(
-		"",         // имя обменника (пустая строка для отправки напрямую в очередь)
-		queue.Name, // имя очереди
-		false,      // обязательное сообщение
-		false,      // сообщение с временным TTL
+		exchange, // имя обменника (пустая строка для отправки напрямую в очередь)
+		// default exchange = "" (direct) означает, что сообщение будет отправлено в очередь с именем,
+		//совпадающим с routingKey.
+		queueName, // имя очереди
+		mandatory, // обязательное сообщение false - сообщение будет удалено, если не будет доставлено
+		immediate, // сообщение с временным TTL false - сообщение будет удалено, если не будет доставлено
 		amqp.Publishing{
-			ContentType: "text/plain",
+			ContentType: contentType, // "text/plain"
 			Body:        []byte(message),
 		})
 	if err != nil {
-		return fmt.Errorf("Не удалось отправить сообщение: %s", err)
+		log.Printf("Не удалось отправить сообщение: %s", err)
+		return fmt.Errorf("не удалось отправить сообщение: %s", err)
 	}
 	return nil
+}
+
+func (rmq *RabbitMQ) handleReturns(ctx context.Context, fallbackProducer func(ctx context.Context, ret amqp.Return) error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Паника во время обработки возвратов: %s", r)
+		}
+	}()
+	log.Println("Запуск обработчика возвратов...")
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Сигнал завершения. Остановка обработчика возвратов...")
+			return
+		case ret, ok := <-rmq.returnsChannel:
+			if !ok {
+				log.Println("Канал возвратов закрыт. Завершаем обработку возвратов.")
+				return
+			}
+
+			// Обработка возврата
+			g, ctx := errgroup.WithContext(ctx)
+			g.SetLimit(1)
+			g.Go(func() error {
+				err := fallbackProducer(ctx, ret)
+				if err != nil {
+					return err
+				}
+				return nil
+			})
+			err := g.Wait()
+
+			if err != nil {
+				log.Printf("Не удалось обработать возврат: %s", err)
+			}
+			log.Printf("Сообщение не доставлено! Routing key: %s, Сообщение: %s", ret.RoutingKey, string(ret.Body))
+		}
+	}
 }
 
 func (rmq *RabbitMQ) Consumer(
@@ -138,6 +191,7 @@ func (rmq *RabbitMQ) Consumer(
 						if r := recover(); r != nil {
 							log.Printf("Паника: %s", r)
 							_ = msg.Nack(false, true)
+							wg.Done()
 						}
 					}()
 					defer wg.Done()
@@ -160,6 +214,7 @@ func (rmq *RabbitMQ) Consumer(
 						}
 					}
 				}()
+				wg.Wait()
 			}
 		}
 	}()
@@ -181,6 +236,7 @@ func (rmq *RabbitMQ) BatchConsumer(
 	noLocal bool,
 	noWait bool,
 	args amqp.Table,
+	batchSize int,
 ) func() {
 	msgs, err := rmq.Channel.Consume(
 		queueName,    // имя очереди
@@ -195,7 +251,6 @@ func (rmq *RabbitMQ) BatchConsumer(
 		log.Fatalf("Не удалось начать потребление сообщений: %s", err)
 	}
 
-	batchSize := 5
 	batch := make([]amqp.Delivery, 0, batchSize)
 	batchMutex := &sync.Mutex{} // Мьютекс для защиты batch
 

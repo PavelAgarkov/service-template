@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/streadway/amqp"
 	"os"
 	"os/signal"
 	"service-template/application"
@@ -51,35 +51,18 @@ func main() {
 
 	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations")
 
-	rmq, rmqCloser := pkg.NewRabbitMq("amqp://user:password@localhost:5672/")
+	rmq, rmqCloser := pkg.NewRabbitMq(
+		father,
+		"amqp://"+"user"+":"+"password"+"@"+"localhost"+":5672/",
+		func(ctx context.Context, ret amqp.Return) error {
+			log := pkg.LoggerFromCtx(ctx)
+			log.Error(fmt.Sprintf("Message %s was returned", string(ret.Body)))
+			return nil
+		},
+	)
 	app.RegisterShutdown("rabbitmq_server", rmqCloser, 50)
 
-	// Объявление очереди
-	queue, err := rmq.Channel.QueueDeclare(
-		"test_queue", // имя очереди
-		true,         // сохранять сообщения на диске
-		false,        // удалять очередь при отсутствии подписчиков
-		false,        // эксклюзивная очередь
-		false,        // ждать подтверждения
-		nil,          // дополнительные аргументы
-	)
-	if err != nil {
-		log.Fatalf("Не удалось объявить очередь: %s", err)
-	}
-
 	background := service.NewBackgroundService()
-	background.RegisterRabbitQueue(
-		"test_queue",
-		&queue,
-		background.BlankConsumer(),
-		true,
-		"test_consumer",
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
 
 	_ = internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.RabbitMqService, Service: rmq},
@@ -87,6 +70,19 @@ func main() {
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
 		Set(service.BackgroundRabbit, background, pkg.RabbitMqService, pkg.PostgresService)
+
+	background.RegisterRabbitQueue(
+		"test_queue",
+		true,
+		false,
+		background.BlankConsumer(),
+		false,
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
 
 	background.RunConsumers(father)
 	closers := background.GetRegisteredShutdowns()

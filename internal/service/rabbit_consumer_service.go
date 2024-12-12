@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"github.com/streadway/amqp"
+	"log"
 	"service-template/internal"
 	"service-template/pkg"
 )
@@ -39,23 +40,36 @@ func NewBackgroundService() *ConsumerRabbitService {
 }
 
 func (bs *ConsumerRabbitService) RegisterRabbitQueue(
-	name string,
-	queue *amqp.Queue,
+	queueName string,
+	durable bool,
+	autoDelete bool,
 	handler func(ctx context.Context, message amqp.Delivery) error,
 	batch bool,
-	consumerName string,
 	autoAsk bool,
 	exclusive bool,
 	noLocal bool,
 	noWait bool,
 	args amqp.Table,
 ) *ConsumerRabbitService {
+	rmq := bs.GetServiceLocator().Get(pkg.RabbitMqService).(*pkg.RabbitMQ)
+	queue, err := rmq.Channel.QueueDeclare(
+		queueName,  // имя очереди
+		durable,    // сохранять сообщения на диске
+		autoDelete, // удалять очередь при отсутствии подписчиков
+		exclusive,  // эксклюзивная очередь
+		noWait,     // ждать подтверждения
+		args,       // дополнительные аргументы
+	)
+	if err != nil {
+		log.Fatalf("Не удалось объявить очередь: %s", err)
+	}
+
 	bs.consumers = append(bs.consumers, &consumer{
-		name:         name,
+		name:         queue.Name,
 		batch:        batch,
 		handler:      handler,
-		queue:        queue,
-		consumerName: consumerName,
+		queue:        &queue,
+		consumerName: queue.Name + "_consumer",
 		autoAsk:      autoAsk,
 		exclusive:    exclusive,
 		noLocal:      noLocal,
@@ -88,6 +102,7 @@ func (bs *ConsumerRabbitService) RunConsumers(ctx context.Context) *ConsumerRabb
 				consumer.noLocal,
 				consumer.noWait,
 				consumer.args,
+				5,
 			)
 			consumer.shutdown = closer
 		} else {

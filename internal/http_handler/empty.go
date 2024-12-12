@@ -76,6 +76,11 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 
 	empty.Age = a
 
+	rmq := srv.GetServiceLocator().Get(pkg.RabbitMqService).(*pkg.RabbitMQ)
+	err = rmq.Producer("1234", "", "message", true, false, "text/plain")
+	if err != nil {
+		l.Error(err.Error())
+	}
 	json, err := serializer.Serialize(empty)
 
 	serializer.ResponseJson(w, json, http.StatusOK)
