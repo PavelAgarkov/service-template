@@ -25,11 +25,13 @@ func NewRabbitMq(ctx context.Context, connectionString string, fallbackProducer 
 
 	_, closer := rmq.build(connectionString)
 	rmq.Channel.NotifyReturn(rmq.returnsChannel) // Установка канала возвратов
+	ctx, cancel := context.WithCancel(ctx)
 
 	// Запуск обработчика возвратов
 	go rmq.handleReturns(ctx, fallbackProducer)
 
 	return rmq, func() {
+		cancel()
 		closer() // Закрываем соединение и канал
 	}
 }
@@ -83,7 +85,14 @@ func (rmq *RabbitMQ) connectToRabbitMQ(url string) (*amqp.Connection, error, fun
 	}
 }
 
-func (rmq *RabbitMQ) Producer(queueName string, exchange string, message string, mandatory bool, immediate bool, contentType string) error {
+func (rmq *RabbitMQ) Produce(
+	queueName string,
+	exchange string,
+	message string,
+	mandatory bool,
+	immediate bool,
+	contentType string,
+) error {
 	err := rmq.Channel.Publish(
 		exchange, // имя обменника (пустая строка для отправки напрямую в очередь)
 		// default exchange = "" (direct) означает, что сообщение будет отправлено в очередь с именем,
@@ -166,7 +175,6 @@ func (rmq *RabbitMQ) Consumer(
 	}
 
 	end := make(chan bool)
-
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
