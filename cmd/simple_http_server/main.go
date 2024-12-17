@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"github.com/streadway/amqp"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"net/http"
 	"os"
@@ -55,26 +53,14 @@ func main() {
 	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
 
-	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations")
-
-	rmq, rmqCloser := pkg.NewRabbitMq(
-		father,
-		"amqp://"+"user"+":"+"password"+"@"+"localhost"+":5672/",
-		func(ctx context.Context, ret amqp.Return) error {
-			log := pkg.LoggerFromCtx(ctx)
-			log.Error(fmt.Sprintf("Message %s was returned", string(ret.Body)))
-			return nil
-		},
-	)
-	app.RegisterShutdown("rabbitmq_server", rmqCloser, 50)
+	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations", "goose_db_version")
 
 	container := internal.NewContainer(
-		&internal.ServiceInit{Name: pkg.RabbitMqService, Service: rmq},
 		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService, pkg.RabbitMqService)
+		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService)
 
 	handlers := http_handler.NewHandlers(container)
 

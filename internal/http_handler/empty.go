@@ -76,8 +76,8 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 
 	empty.Age = a
 
-	rmq := srv.GetServiceLocator().Get(pkg.RabbitMqService).(*pkg.RabbitMQ)
-	err = rmq.Produce("1234", "", "message", true, false, "text/plain")
+	//rmq := srv.GetServiceLocator().Get(pkg.RabbitMqService).(*pkg.RabbitMQ)
+	//err = rmq.Produce("1234", "", "message", true, false, "text/plain")
 	if err != nil {
 		l.Error(err.Error())
 	}

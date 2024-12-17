@@ -45,7 +45,7 @@ func main() {
 	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
 
-	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations")
+	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations", "goose_db_version")
 
 	container := internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},

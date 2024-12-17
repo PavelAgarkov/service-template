@@ -33,17 +33,20 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
+    hostname: rabbit-service-template # Фиксированное имя хоста
     ports:
       - "5672:5672"       # Порт для подключения клиентов
       - "15672:15672"     # Порт для доступа к Management UI
     environment:
       RABBITMQ_DEFAULT_USER: user # Логин для доступа к Management UI
       RABBITMQ_DEFAULT_PASS: password # Пароль для доступа к Management UI
+      RABBITMQ_NODENAME: rabbit-service-template # Фиксированное имя узла
+      RABBITMQ_ERLANG_COOKIE: rabbit-service-template-cookie # Секретный cookie для кластера
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - service-template
-
+  
 #RabbitMQ Management UI: http://localhost:15672 (логин: user, пароль: password).
 #Grafana: http://localhost:3000 (логин: admin, пароль: admin).
 
@@ -57,6 +60,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-rabbitmq-datasource
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
@@ -64,6 +68,7 @@ services:
 
 volumes:
   rabbitmq_data:
+#  rabbitmq_data_1:
   grafana_data:
   habrdb-data:
 
