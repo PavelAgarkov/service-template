@@ -8,14 +8,13 @@ import (
 	"service-template/internal"
 )
 
-const BackgroundRabbit = "background_rabbit"
-
 const (
-	Publisher  = "publisher"
-	Publisher1 = "publisher1"
+	BackgroundRabbit = "background_rabbit"
+	Publisher        = "publisher"
+	Publisher1       = "publisher1"
 )
 
-type Route struct {
+type RabbitConsumeRoute struct {
 	Consumer *gorabbitmq.Consumer
 	Handler  gorabbitmq.Handler
 }
@@ -26,10 +25,10 @@ type RabbitConsumers interface {
 
 type ConsumerRabbitService struct {
 	locator internal.LocatorInterface
-	router  map[string]*Route
+	router  map[string]*RabbitConsumeRoute
 }
 
-func NewBackgroundService() *ConsumerRabbitService {
+func NewConsumerRabbitService() *ConsumerRabbitService {
 	return &ConsumerRabbitService{}
 }
 
@@ -41,9 +40,9 @@ func (bs *ConsumerRabbitService) GetServiceLocator() internal.LocatorInterface {
 	return bs.locator
 }
 
-func (bs *ConsumerRabbitService) Run(father context.Context, router map[string]*Route) {
+func (bs *ConsumerRabbitService) Run(father context.Context, router map[string]*RabbitConsumeRoute) {
 	for k, route := range router {
-		go func(k string, route *Route) {
+		go func(k string, route *RabbitConsumeRoute) {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("Recovered in f %v", r)

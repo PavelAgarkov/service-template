@@ -51,14 +51,15 @@ func main() {
 	)
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
 
+	connectionRabbitString := "amqp://user:password@localhost:5672/"
 	pkg.NewMigrations(postgres.GetDB().DB).
 		Migrate("./migrations", "goose_db_version").
-		MigrateRabbitMq("rabbit_migrations", []string{"amqp://user:password@localhost:5672/"})
+		MigrateRabbitMq("rabbit_migrations", []string{connectionRabbitString})
 
 	conn, err := gorabbitmq.NewClusterConn(
 		gorabbitmq.NewStaticResolver(
 			[]string{
-				"amqp://user:password@localhost:5672/",
+				connectionRabbitString,
 			},
 			false,
 		),
@@ -70,7 +71,6 @@ func main() {
 		log.Fatalf("failed to connect to RabbitMQ: %v", err)
 	}
 
-	bg := service.NewBackgroundService()
 	rmq := pkg.NewRabbitMQ()
 
 	publisher := rmq.RegisterPublisher(
@@ -79,7 +79,7 @@ func main() {
 			log.Printf("message returned from server: %v", r)
 		},
 		func(c gorabbitmq.Confirmation) {
-			log.Printf("message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack)
+			log.Printf("publisher_0 message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack)
 		},
 		gorabbitmq.WithPublisherOptionsExchangeName("events"),
 		gorabbitmq.WithPublisherOptionsLogging,
@@ -93,7 +93,7 @@ func main() {
 			log.Printf("message returned from server: %v", r)
 		},
 		func(c gorabbitmq.Confirmation) {
-			log.Printf("message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack)
+			log.Printf("publisher_1 message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack)
 		},
 		gorabbitmq.WithPublisherOptionsExchangeName("my_events"),
 		gorabbitmq.WithPublisherOptionsLogging,
@@ -101,6 +101,7 @@ func main() {
 	)
 	app.RegisterShutdown(service.Publisher1, publisher1.Close, 9)
 
+	bg := service.NewConsumerRabbitService()
 	_ = internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 		&internal.ServiceInit{Name: service.Publisher, Service: publisher},
@@ -136,7 +137,7 @@ func main() {
 
 	bg.Run(
 		father,
-		map[string]*service.Route{
+		map[string]*service.RabbitConsumeRoute{
 			"consumer": {
 				Consumer: consumer,
 				Handler:  bg.BlankConsumer(father),

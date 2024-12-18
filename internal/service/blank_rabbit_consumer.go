@@ -27,7 +27,7 @@ func (bs *ConsumerRabbitService) BlankConsumer(ctx context.Context) func(d gorab
 		//row1.Scan(&a)
 
 		publisher1 := bs.GetServiceLocator().Get(Publisher1).(*gorabbitmq.Publisher)
-		if err := publisher1.PublishWithContext(
+		confirms, err := publisher1.PublishWithDeferredConfirmWithContext(
 			ctx,
 			[]byte("publisher: hello, world"),
 			[]string{"test_queue"},
@@ -35,8 +35,21 @@ func (bs *ConsumerRabbitService) BlankConsumer(ctx context.Context) func(d gorab
 			gorabbitmq.WithPublishOptionsExchange("events"),
 			gorabbitmq.WithPublishOptionsMandatory,
 			gorabbitmq.WithPublishOptionsPersistentDelivery,
-		); err != nil {
+		)
+		if err != nil {
 			l.Error(fmt.Sprintf("failed to publish: %v", err))
+		}
+		if len(confirms) == 0 || confirms[0] == nil {
+			fmt.Println("message publishing not confirmed")
+		}
+		ok, err := confirms[0].WaitContext(context.Background())
+		if err != nil {
+			l.Error(err.Error())
+		}
+		if ok {
+			l.Info("message publishing confirmed")
+		} else {
+			l.Error("message publishing not confirmed")
 		}
 
 		time.Sleep(1 * time.Second)
