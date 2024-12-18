@@ -72,11 +72,16 @@ func main() {
 	}
 
 	rmq := pkg.NewRabbitMQ()
+	bg := service.NewConsumerRabbitService()
 
 	publisher := rmq.RegisterPublisher(
 		conn,
 		func(r gorabbitmq.Return) {
-			log.Printf("message returned from server: %v", r)
+			err := bg.HandleFailedMessageFromRabbitServer(father, r)()
+			if err != nil {
+				log.Printf("failed to handle failed message: %v", err)
+				return
+			}
 		},
 		func(c gorabbitmq.Confirmation) {
 			log.Printf("publisher_0 message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack)
@@ -90,7 +95,11 @@ func main() {
 	publisher1 := rmq.RegisterPublisher(
 		conn,
 		func(r gorabbitmq.Return) {
-			log.Printf("message returned from server: %v", r)
+			err := bg.HandleFailedMessageFromRabbitServer(father, r)()
+			if err != nil {
+				log.Printf("failed to handle failed message: %v", err)
+				return
+			}
 		},
 		func(c gorabbitmq.Confirmation) {
 			log.Printf("publisher_1 message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack)
@@ -101,14 +110,14 @@ func main() {
 	)
 	app.RegisterShutdown(service.Publisher1, publisher1.Close, 9)
 
-	bg := service.NewConsumerRabbitService()
 	_ = internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 		&internal.ServiceInit{Name: service.Publisher, Service: publisher},
 		&internal.ServiceInit{Name: service.Publisher1, Service: publisher1},
+		&internal.ServiceInit{Name: pkg.RabbitMqService, Service: rmq},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-		Set(service.BackgroundRabbit, bg, pkg.PostgresService, service.Publisher, service.Publisher1)
+		Set(service.BackgroundRabbitConsumeService, bg, pkg.PostgresService, service.Publisher, service.Publisher1)
 
 	consumer := rmq.RegisterConsumer(
 		conn,

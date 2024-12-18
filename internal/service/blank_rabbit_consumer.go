@@ -16,7 +16,8 @@ func (bs *ConsumerRabbitService) BlankConsumer(ctx context.Context) func(d gorab
 		//row := postgres.GetDB().QueryRow("insert into user_p(id) values (1);")
 		//if err := row.Err(); err != nil {
 		//	l.Error(err.Error())
-		//	return gorabbitmq.Ack
+		//	// возвращаем NackRequeue, чтобы сообщение вернулось в очередь
+		//	return gorabbitmq.NackRequeue
 		//}
 		//row1 := postgres.GetDB().QueryRow("select count(*) from user_p")
 		//if err := row1.Err(); err != nil {

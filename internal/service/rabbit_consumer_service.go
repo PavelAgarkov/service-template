@@ -2,16 +2,18 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	amqp "github.com/rabbitmq/amqp091-go"
 	gorabbitmq "github.com/wagslane/go-rabbitmq"
 	"log"
 	"service-template/internal"
+	"service-template/pkg"
 )
 
 const (
-	BackgroundRabbit = "background_rabbit"
-	Publisher        = "publisher"
-	Publisher1       = "publisher1"
+	BackgroundRabbitConsumeService = "background_rabbit_consume_service"
+	Publisher                      = "publisher"
+	Publisher1                     = "publisher1"
 )
 
 type RabbitConsumeRoute struct {
@@ -52,5 +54,44 @@ func (bs *ConsumerRabbitService) Run(father context.Context, router map[string]*
 				log.Printf("consumer error: %v", err)
 			}
 		}(k, route)
+	}
+}
+
+func (bs *ConsumerRabbitService) HandleFailedMessageFromRabbitServer(ctx context.Context, ret gorabbitmq.Return) func() error {
+	return func() error {
+		newRet := &pkg.Return{
+			ReplyCode:       ret.ReplyCode,
+			ReplyText:       ret.ReplyText,
+			Exchange:        ret.Exchange,
+			RoutingKey:      ret.RoutingKey,
+			ContentType:     ret.ContentType,
+			ContentEncoding: ret.ContentEncoding,
+			Headers:         ret.Headers,
+			DeliveryMode:    ret.DeliveryMode,
+			Priority:        ret.Priority,
+			CorrelationId:   ret.CorrelationId,
+			ReplyTo:         ret.ReplyTo,
+			Expiration:      ret.Expiration,
+			MessageId:       ret.MessageId,
+			Timestamp:       ret.Timestamp,
+			Type:            ret.Type,
+			UserId:          ret.UserId,
+			AppId:           ret.AppId,
+			Body:            string(ret.Body),
+		}
+
+		jsonData, err := json.Marshal(newRet)
+		if err != nil {
+			return err
+		}
+
+		postgres := bs.GetServiceLocator().Get(pkg.PostgresService).(*pkg.PostgresRepository)
+		rows, err := postgres.GetDB().NamedQuery("INSERT INTO rabbit_returns (data) VALUES (:data);", map[string]interface{}{
+			"data": jsonData,
+		})
+		defer rows.Close()
+
+		log.Printf("succes did record: %v", ret)
+		return nil
 	}
 }
