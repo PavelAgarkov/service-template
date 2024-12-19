@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"google.golang.org/grpc"
-	"log"
 	"os"
 	"os/signal"
 	"service-template/application"
@@ -22,7 +21,9 @@ import (
 
 func main() {
 	father, cancel := context.WithCancel(context.Background())
+	father = pkg.LoggerWithCtx(father, pkg.GetLogger())
 	defer cancel()
+	l := pkg.LoggerFromCtx(father)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -32,14 +33,14 @@ func main() {
 
 	go func() {
 		<-sig
-		log.Println("Signal received. Shutting down server...")
+		l.Info("Signal received. Shutting down server...")
 		cancel()
 	}()
 
 	app := application.NewApp()
 	defer func() {
 		app.Stop()
-		log.Printf("app is stopped")
+		l.Info("app is stopped")
 	}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	gorabbitmq "github.com/wagslane/go-rabbitmq"
 	"service-template/pkg"
-	"time"
 )
 
 func (bs *ConsumerRabbitService) BlankConsumer(ctx context.Context) func(d gorabbitmq.Delivery) gorabbitmq.Action {
@@ -41,7 +40,7 @@ func (bs *ConsumerRabbitService) BlankConsumer(ctx context.Context) func(d gorab
 			l.Error(fmt.Sprintf("failed to publish: %v", err))
 		}
 		if len(confirms) == 0 || confirms[0] == nil {
-			fmt.Println("message publishing not confirmed")
+			l.Info("message publishing not confirmed")
 		}
 		ok, err := confirms[0].WaitContext(context.Background())
 		if err != nil {
@@ -53,7 +52,7 @@ func (bs *ConsumerRabbitService) BlankConsumer(ctx context.Context) func(d gorab
 			l.Error("message publishing not confirmed")
 		}
 
-		time.Sleep(1 * time.Second)
+		//time.Sleep(1 * time.Second)
 
 		l.Info(fmt.Sprintf("consumed_0: %v", string(d.Body)))
 		return gorabbitmq.Ack

@@ -163,7 +163,7 @@ func main() {
 			},
 		})
 
-	go push(publisher, publisher1, father)
+	//go push(publisher, publisher1, father)
 
 	<-father.Done()
 	l.Info("application exited gracefully")

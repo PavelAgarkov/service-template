@@ -30,8 +30,9 @@ func main() {
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, pkg.GetLogger())
 	defer cancel()
+	l := pkg.LoggerFromCtx(father)
 
-	pkg.LoggerFromCtx(father).Info("config initializing")
+	l.Info("config initializing")
 	cfg := config.GetConfig()
 
 	sig := make(chan os.Signal, 1)
@@ -40,14 +41,14 @@ func main() {
 
 	go func() {
 		<-sig
-		pkg.LoggerFromCtx(father).Info("Signal received. Shutting down server...")
+		l.Info("Signal received. Shutting down server...")
 		cancel()
 	}()
 
 	app := application.NewApp()
 	defer func() {
 		app.Stop()
-		pkg.LoggerFromCtx(father).Info("app is stopped")
+		l.Info("app is stopped")
 	}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")

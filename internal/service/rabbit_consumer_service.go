@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	amqp "github.com/rabbitmq/amqp091-go"
 	gorabbitmq "github.com/wagslane/go-rabbitmq"
-	"log"
 	"service-template/internal"
 	"service-template/pkg"
 )
@@ -43,21 +43,23 @@ func (bs *ConsumerRabbitService) GetServiceLocator() internal.LocatorInterface {
 }
 
 func (bs *ConsumerRabbitService) Run(father context.Context, router map[string]*RabbitConsumeRoute) {
+	l := pkg.LoggerFromCtx(father)
 	for k, route := range router {
 		go func(k string, route *RabbitConsumeRoute) {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Printf("Recovered in f %v", r)
+					l.Info(fmt.Sprintf("Recovered in f %v", r))
 				}
 			}()
 			if err := route.Consumer.Run(route.Handler); err != nil {
-				log.Printf("consumer error: %v", err)
+				l.Info(fmt.Sprintf("consumer error: %v", err))
 			}
 		}(k, route)
 	}
 }
 
-func (bs *ConsumerRabbitService) HandleFailedMessageFromRabbitServer(ctx context.Context, ret gorabbitmq.Return) func() error {
+func (bs *ConsumerRabbitService) HandleFailedMessageFromRabbitServer(father context.Context, ret gorabbitmq.Return) func() error {
+	l := pkg.LoggerFromCtx(father)
 	return func() error {
 		newRet := &pkg.Return{
 			ReplyCode:       ret.ReplyCode,
@@ -91,7 +93,7 @@ func (bs *ConsumerRabbitService) HandleFailedMessageFromRabbitServer(ctx context
 		})
 		defer rows.Close()
 
-		log.Printf("succes did record: %v", ret)
+		l.Info(fmt.Sprintf("succes did record: %v", ret))
 		return nil
 	}
 }
