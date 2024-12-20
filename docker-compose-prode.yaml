@@ -47,9 +47,8 @@ services:
     networks:
       - service-template
   
-#RabbitMQ Management UI: http://localhost:15672 (логин: user, пароль: password).
-#Grafana: http://localhost:3000 (логин: admin, пароль: admin).
-
+  #RabbitMQ Management UI: http://localhost:15672 (логин: user, пароль: password).
+  #Grafana: http://localhost:3111 (логин: admin, пароль: admin).
   rabbitmq-monitor:
     image: grafana/grafana:latest
     container_name: rabbitmq_monitor
@@ -60,17 +59,33 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=grafana-rabbitmq-datasource
+    #      - GF_INSTALL_PLUGINS=grafana-rabbitmq-datasource
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
       - service-template
+  
+#    redis://myuser:mypassword@localhost:6379
+#    redis://myuser:mypassword@redis-service-template:6379
+  redis:
+    image: redis:7.0.12
+    container_name: redis
+    hostname: redis-service-template
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+      - ./redis-config/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    networks:
+      - service-template
+    restart: unless-stopped
 
 volumes:
   rabbitmq_data:
-#  rabbitmq_data_1:
   grafana_data:
   habrdb-data:
+  redis_data:
 
 networks:
   service-template:

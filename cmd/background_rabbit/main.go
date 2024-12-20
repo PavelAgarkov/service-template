@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"log"
 	"os"
 	"os/signal"
@@ -113,14 +114,51 @@ func main() {
 	)
 	app.RegisterShutdown(service.Publisher1, publisher1.Close, 9)
 
+	redisClient := pkg.NewRedisClient(&redis.Options{
+		Addr:     "127.0.0.1:6379",
+		Username: "myuser",
+		Password: "mypassword",
+		//такое использование баз данных возможно только без кластера
+		// каждый сервис должен использовать свою базу данных DB
+		// всего баз в сервере 16 DB
+		// каждое подключение может использовать только одну базу данных DB
+		DB:           1,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
+
+		// PoolSize, MinIdleConns можно настраивать при высоконагруженных сценариях.
+		PoolSize:     10,
+		MinIdleConns: 2,
+	})
+
+	app.RegisterShutdown(
+		"redis-node",
+		func() {
+			if err := redisClient.Client.Close(); err != nil {
+				l.Info(fmt.Sprintf("failed to close redis connection: %v", err))
+			}
+		},
+		100,
+	)
+
+	cronCl := pkg.NewCronClient(redisClient.Client)
+	cronService := service.NewCron()
+
 	_ = internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 		&internal.ServiceInit{Name: service.Publisher, Service: publisher},
 		&internal.ServiceInit{Name: service.Publisher1, Service: publisher1},
-		&internal.ServiceInit{Name: pkg.RabbitMqService, Service: rmq},
+		&internal.ServiceInit{Name: pkg.RedisClientService, Service: redisClient},
+		&internal.ServiceInit{Name: pkg.CronPackage, Service: cronCl},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-		Set(service.BackgroundRabbitConsumeService, bg, pkg.PostgresService, service.Publisher, service.Publisher1)
+		Set(service.BackgroundRabbitConsumeService, bg, pkg.PostgresService, service.Publisher, service.Publisher1).
+		Set(service.CronSService, cronService, pkg.CronPackage)
+
+	cronCl.AddSchedule("* * * * * *", cronService.Blank(father))
+	cronCl.C.Start()
+	app.RegisterShutdown("cron", func() { cronCl.C.Stop() }, 10)
 
 	consumer := rmq.RegisterConsumer(
 		conn,
