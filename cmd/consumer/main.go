@@ -10,8 +10,8 @@ import (
 	"service-template/application"
 	"service-template/config"
 	"service-template/internal"
+	consumers "service-template/internal/consumer"
 	"service-template/internal/repository"
-	"service-template/internal/service"
 	"service-template/pkg"
 	"syscall"
 	"time"
@@ -75,7 +75,7 @@ func main() {
 	}
 
 	rmq := pkg.NewRabbitMQ()
-	bg := service.NewConsumerRabbitService()
+	bg := consumers.NewConsumerRabbitService()
 
 	publisher := rmq.RegisterPublisher(
 		conn,
@@ -93,7 +93,7 @@ func main() {
 		gorabbitmq.WithPublisherOptionsLogging,
 		gorabbitmq.WithPublisherOptionsExchangeDurable,
 	)
-	app.RegisterShutdown(service.Publisher, publisher.Close, 9)
+	app.RegisterShutdown(consumers.Publisher, publisher.Close, 9)
 
 	publisher1 := rmq.RegisterPublisher(
 		conn,
@@ -111,7 +111,7 @@ func main() {
 		gorabbitmq.WithPublisherOptionsLogging,
 		gorabbitmq.WithPublisherOptionsExchangeDurable,
 	)
-	app.RegisterShutdown(service.Publisher1, publisher1.Close, 9)
+	app.RegisterShutdown(consumers.Publisher1, publisher1.Close, 9)
 
 	redisClient := pkg.NewRedisClient(&redis.Options{
 		Addr:     "127.0.0.1:6379",
@@ -143,12 +143,12 @@ func main() {
 
 	_ = internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
-		&internal.ServiceInit{Name: service.Publisher, Service: publisher},
-		&internal.ServiceInit{Name: service.Publisher1, Service: publisher1},
+		&internal.ServiceInit{Name: consumers.Publisher, Service: publisher},
+		&internal.ServiceInit{Name: consumers.Publisher1, Service: publisher1},
 		&internal.ServiceInit{Name: pkg.RedisClientService, Service: redisClient},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-		Set(service.BackgroundRabbitConsumeService, bg, pkg.PostgresService, service.Publisher, service.Publisher1)
+		Set(consumers.BackgroundRabbitConsumeService, bg, pkg.PostgresService, consumers.Publisher, consumers.Publisher1)
 
 	consumer := rmq.RegisterConsumer(
 		conn,
@@ -177,7 +177,7 @@ func main() {
 
 	bg.Run(
 		father,
-		map[string]*service.RabbitConsumeRoute{
+		map[string]*consumers.RabbitConsumeRoute{
 			"consumer": {
 				Consumer: consumer,
 				Handler:  bg.BlankConsumer(father),

@@ -9,7 +9,8 @@ import (
 	"service-template/application"
 	"service-template/config"
 	"service-template/internal"
-	"service-template/internal/service"
+	"service-template/internal/cron"
+	"service-template/internal/repository"
 	"service-template/pkg"
 	"syscall"
 	"time"
@@ -101,14 +102,15 @@ func main() {
 	)
 
 	cronCl := pkg.NewCronClient(redisClient.Client)
-	cronService := service.NewCron()
+	cronService := cron.NewCronService()
 
 	_ = internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 		&internal.ServiceInit{Name: pkg.RedisClientService, Service: redisClient},
 		&internal.ServiceInit{Name: pkg.CronPackage, Service: cronCl},
 	).
-		Set(service.CronSService, cronService, pkg.CronPackage)
+		Set(repository.RedisRepositoryLabel, repository.NewRedisRepository(), pkg.RedisClientService).
+		Set(cron.CronSService, cronService, pkg.CronPackage, repository.RedisRepositoryLabel)
 
 	cronCl.AddSchedule("* * * * * *", cronService.Blank(father))
 	cronCl.C.Start()
