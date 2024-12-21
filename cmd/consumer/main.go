@@ -13,7 +13,6 @@ import (
 	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -69,7 +68,7 @@ func main() {
 		),
 		gorabbitmq.WithConnectionOptionsLogging,
 	)
-	app.RegisterShutdown("rabbitmq", func() { _ = conn.Close() }, 50)
+	app.RegisterShutdown("rabbitmq", func() { _ = conn.Close() }, 100)
 
 	if err != nil {
 		l.Fatal(fmt.Sprintf("failed to connect to RabbitMQ: %v", err))
@@ -142,23 +141,14 @@ func main() {
 		100,
 	)
 
-	cronCl := pkg.NewCronClient(redisClient.Client)
-	cronService := service.NewCron()
-
 	_ = internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 		&internal.ServiceInit{Name: service.Publisher, Service: publisher},
 		&internal.ServiceInit{Name: service.Publisher1, Service: publisher1},
 		&internal.ServiceInit{Name: pkg.RedisClientService, Service: redisClient},
-		&internal.ServiceInit{Name: pkg.CronPackage, Service: cronCl},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-		Set(service.BackgroundRabbitConsumeService, bg, pkg.PostgresService, service.Publisher, service.Publisher1).
-		Set(service.CronSService, cronService, pkg.CronPackage)
-
-	cronCl.AddSchedule("* * * * * *", cronService.Blank(father))
-	cronCl.C.Start()
-	app.RegisterShutdown("cron", func() { cronCl.C.Stop() }, 10)
+		Set(service.BackgroundRabbitConsumeService, bg, pkg.PostgresService, service.Publisher, service.Publisher1)
 
 	consumer := rmq.RegisterConsumer(
 		conn,
@@ -201,49 +191,6 @@ func main() {
 			},
 		})
 
-	//go push(publisher, publisher1, father)
-
 	<-father.Done()
 	l.Info("application exited gracefully")
-}
-
-func push(publisher, publisher1 *gorabbitmq.Publisher, father context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	i := 0
-	for {
-		select {
-		case <-ticker.C:
-			//if err := publisher1.PublishWithContext(
-			//	father,
-			//	[]byte("main file"),
-			//	[]string{"test_queue"},
-			//	gorabbitmq.WithPublishOptionsContentType("application/json"),
-			//	gorabbitmq.WithPublishOptionsExchange("events"),
-			//	gorabbitmq.WithPublishOptionsMandatory,
-			//	gorabbitmq.WithPublishOptionsPersistentDelivery,
-			//); err != nil {
-			//	log.Printf("failed to publish: %v", err)
-			//}
-
-			if err := publisher.PublishWithContext(
-				father,
-				[]byte("my hello, world------>"+strconv.Itoa(i)),
-				[]string{"my_queue"},
-				gorabbitmq.WithPublishOptionsContentType("application/json"),
-				gorabbitmq.WithPublishOptionsExchange("my_events"),
-				gorabbitmq.WithPublishOptionsMandatory,
-				gorabbitmq.WithPublishOptionsPersistentDelivery,
-			); err != nil {
-				log.Printf("failed to publish: %v", err)
-			}
-			i++
-			//time.Sleep(1 * time.Second)
-
-		case <-father.Done():
-			log.Println("stopping publisher")
-			return
-		}
-	}
 }

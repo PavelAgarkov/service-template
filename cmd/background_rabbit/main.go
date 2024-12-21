@@ -69,7 +69,7 @@ func main() {
 		),
 		gorabbitmq.WithConnectionOptionsLogging,
 	)
-	app.RegisterShutdown("rabbitmq", func() { _ = conn.Close() }, 50)
+	app.RegisterShutdown("rabbitmq", func() { _ = conn.Close() }, 100)
 
 	if err != nil {
 		l.Fatal(fmt.Sprintf("failed to connect to RabbitMQ: %v", err))
@@ -142,23 +142,14 @@ func main() {
 		100,
 	)
 
-	cronCl := pkg.NewCronClient(redisClient.Client)
-	cronService := service.NewCron()
-
 	_ = internal.NewContainer(
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 		&internal.ServiceInit{Name: service.Publisher, Service: publisher},
 		&internal.ServiceInit{Name: service.Publisher1, Service: publisher1},
 		&internal.ServiceInit{Name: pkg.RedisClientService, Service: redisClient},
-		&internal.ServiceInit{Name: pkg.CronPackage, Service: cronCl},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-		Set(service.BackgroundRabbitConsumeService, bg, pkg.PostgresService, service.Publisher, service.Publisher1).
-		Set(service.CronSService, cronService, pkg.CronPackage)
-
-	cronCl.AddSchedule("* * * * * *", cronService.Blank(father))
-	cronCl.C.Start()
-	app.RegisterShutdown("cron", func() { cronCl.C.Stop() }, 10)
+		Set(service.BackgroundRabbitConsumeService, bg, pkg.PostgresService, service.Publisher, service.Publisher1)
 
 	consumer := rmq.RegisterConsumer(
 		conn,
