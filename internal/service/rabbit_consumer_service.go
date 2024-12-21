@@ -27,7 +27,6 @@ type RabbitConsumers interface {
 
 type ConsumerRabbitService struct {
 	locator internal.LocatorInterface
-	router  map[string]*RabbitConsumeRoute
 }
 
 func NewConsumerRabbitService() *ConsumerRabbitService {

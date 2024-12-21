@@ -122,7 +122,7 @@ func (simple *SimpleHTTPServer) RunSimpleHTTPServer(mwf ...mux.MiddlewareFunc) f
 		l.Info("Server has stopped")
 	}()
 
-	return simple.Shutdown(server)
+	return simple.shutdown(server)
 }
 
 func (simple *SimpleHTTPServer) ToConfigureHandlers(configure func(simple *SimpleHTTPServer)) {
@@ -130,7 +130,7 @@ func (simple *SimpleHTTPServer) ToConfigureHandlers(configure func(simple *Simpl
 }
 
 // Shutdown gracefully shuts down the server without interrupting any active connections.
-func (simple *SimpleHTTPServer) Shutdown(server *http.Server) func() {
+func (simple *SimpleHTTPServer) shutdown(server *http.Server) func() {
 	return func() {
 		l := pkg.GetLogger()
 		l.Info("Shutting down the server...")

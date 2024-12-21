@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"service-template/pkg"
 
 	"google.golang.org/grpc"
 )
@@ -37,17 +38,23 @@ func (s *MyGRPCServer) Start(registerServices func(*grpc.Server)) func() {
 	}
 
 	go func() {
-		log.Printf("gRPC server is running on %s", s.port)
+		l := pkg.GetLogger()
+		defer func() {
+			if r := recover(); r != nil {
+				l.Error(fmt.Sprintf("Recovered from gRPC server: %v", r))
+			}
+		}()
+		l.Info(fmt.Sprintf("gRPC server is running on %s", s.port))
 		if err = s.server.Serve(listener); err != nil {
 			panic(fmt.Sprintf("Server gRPC stopped by error: %v", err))
 		}
 	}()
 
-	return s.Shutdown
+	return s.shutdown
 }
 
 // Shutdown завершает работу сервера.
-func (s *MyGRPCServer) Shutdown() {
+func (s *MyGRPCServer) shutdown() {
 	log.Println("Shutting down gRPC server...")
 	s.server.GracefulStop()
 	log.Println("gRPC server has stopped.")
