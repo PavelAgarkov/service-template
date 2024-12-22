@@ -19,12 +19,12 @@ import (
 )
 
 func main() {
+	logger := pkg.NewLogger("cron")
 	father, cancel := context.WithCancel(context.Background())
-	father = pkg.LoggerWithCtx(father, pkg.GetLogger())
+	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
-	l := pkg.LoggerFromCtx(father)
 
-	l.Info("config initializing")
+	logger.Info("config initializing")
 	cfg := config.GetConfig()
 
 	sig := make(chan os.Signal, 1)
@@ -33,17 +33,18 @@ func main() {
 
 	go func() {
 		<-sig
-		l.Info("Signal received. Shutting down server...")
+		logger.Info("Signal received. Shutting down server...")
 		cancel()
 	}()
 
-	app := application.NewApp()
+	app := application.NewApp(logger)
 	defer func() {
 		app.Stop()
-		l.Info("app is stopped")
+		logger.Info("app is stopped")
 	}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(
+		logger,
 		cfg.DB.Host,
 		cfg.DB.Port,
 		cfg.DB.Username,
@@ -54,7 +55,7 @@ func main() {
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
 
 	connectionRabbitString := "amqp://user:password@localhost:5672/"
-	pkg.NewMigrations(postgres.GetDB().DB).
+	pkg.NewMigrations(postgres.GetDB().DB, logger).
 		Migrate("./migrations", "goose_db_version").
 		MigrateRabbitMq("rabbit_migrations", []string{connectionRabbitString})
 
@@ -70,7 +71,7 @@ func main() {
 	app.RegisterShutdown("rabbitmq", func() { _ = conn.Close() }, 100)
 
 	if err != nil {
-		l.Fatal(fmt.Sprintf("failed to connect to RabbitMQ: %v", err))
+		logger.Fatal(fmt.Sprintf("failed to connect to RabbitMQ: %v", err))
 	}
 
 	redisClient := pkg.NewRedisClient(&redis.Options{
@@ -89,22 +90,25 @@ func main() {
 		// PoolSize, MinIdleConns можно настраивать при высоконагруженных сценариях.
 		PoolSize:     10,
 		MinIdleConns: 2,
-	})
+	},
+		logger,
+	)
 
 	app.RegisterShutdown(
 		"redis-node",
 		func() {
 			if err := redisClient.Client.Close(); err != nil {
-				l.Info(fmt.Sprintf("failed to close redis connection: %v", err))
+				logger.Info(fmt.Sprintf("failed to close redis connection: %v", err))
 			}
 		},
 		100,
 	)
 
-	cronCl := pkg.NewCronClient(redisClient.Client)
+	cronCl := pkg.NewCronClient(redisClient.Client, logger)
 	cronService := cron.NewCronService()
 
 	_ = internal.NewContainer(
+		logger,
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 		&internal.ServiceInit{Name: pkg.RedisClientService, Service: redisClient},
 		&internal.ServiceInit{Name: pkg.CronPackage, Service: cronCl},
@@ -117,5 +121,5 @@ func main() {
 	app.RegisterShutdown("cron", func() { cronCl.C.Stop() }, 10)
 
 	<-father.Done()
-	l.Info("application exited gracefully")
+	logger.Info("application exited gracefully")
 }

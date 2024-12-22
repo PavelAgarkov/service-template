@@ -33,7 +33,10 @@ func (suite *EmptyTestSuite) SetupSuite() {
 	}
 	suite.pgContainer = pgContainer
 
+	logger := pkg.NewLogger("test")
+
 	postgres, _ := pkg.NewPostgres(
+		logger,
 		pgContainer.DBConfig.Host,
 		pgContainer.DBConfig.Port,
 		pgContainer.DBConfig.Username,
@@ -43,6 +46,7 @@ func (suite *EmptyTestSuite) SetupSuite() {
 	)
 
 	container := internal.NewContainer(
+		logger,
 		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 	).

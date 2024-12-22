@@ -2,7 +2,7 @@ package application
 
 import (
 	"fmt"
-	"service-template/pkg"
+	"go.uber.org/zap"
 	"sync"
 )
 
@@ -20,11 +20,13 @@ type Shutdown struct {
 type App struct {
 	shutdownRWM sync.RWMutex
 	shutdown    *LinkedList
+	logger      *zap.Logger
 }
 
-func NewApp() *App {
+func NewApp(logger *zap.Logger) *App {
 	return &App{
 		shutdown: &LinkedList{},
+		logger:   logger,
 	}
 }
 
@@ -81,18 +83,18 @@ func (a *App) GetAllRegisteredShutdown() *LinkedList {
 // shutdownAll shuts down all registered shutdown functions.
 func (a *App) shutdownAllAndDeleteAllCanceled() {
 	a.shutdownRWM.Lock()
-	l := pkg.GetLogger()
+	//l := pkg.GetLogger()
 	defer a.shutdownRWM.Unlock()
 	for a.shutdown.Node != nil {
 		a.shutdown.Node.shutdownFunc()
-		l.Info(fmt.Sprintf("shutdown func %s with priority %v", a.shutdown.Node.Name, a.shutdown.Node.Priority))
+		a.logger.Info(fmt.Sprintf("shutdown func %s with priority %v", a.shutdown.Node.Name, a.shutdown.Node.Priority))
 		a.shutdown.Node = a.shutdown.Node.Next
 	}
 }
 
 // Stop stops the application.
 func (a *App) Stop() {
-	l := pkg.GetLogger()
-	l.Info("Stop()")
+	//l := pkg.GetLogger()
+	a.logger.Info("Stop()")
 	a.shutdownAllAndDeleteAllCanceled()
 }

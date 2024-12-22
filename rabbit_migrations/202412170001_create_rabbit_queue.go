@@ -1,15 +1,16 @@
 package rabbit_migrations
 
 import (
+	"fmt"
 	amqp091 "github.com/rabbitmq/amqp091-go"
-	"log"
+	"go.uber.org/zap"
 )
 
 const RabbitMqVersion202412170001 = 202412170001
 
 //RoutingKey обязателен для обменников типа direct и topic.
 
-func Up202412170001() func(ch *amqp091.Channel) (string, error) {
+func Up202412170001(logger *zap.Logger) func(ch *amqp091.Channel) (string, error) {
 	return func(ch *amqp091.Channel) (string, error) {
 		queueName := "my_queue"
 		_, err := ch.QueueDeclare(queueName, true, false, false, false, nil)
@@ -24,7 +25,7 @@ func Up202412170001() func(ch *amqp091.Channel) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		log.Printf("Очередь '%s' успешно создана", queueName)
+		logger.Info(fmt.Sprintf("Очередь '%s' успешно создана", queueName))
 
 		queueName = "test_queue"
 		_, err = ch.QueueDeclare(queueName, true, false, false, false, nil)
@@ -39,7 +40,7 @@ func Up202412170001() func(ch *amqp091.Channel) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		log.Printf("Очередь '%s' успешно создана", queueName)
+		logger.Info(fmt.Sprintf("Очередь '%s' успешно создана", queueName))
 
 		return "Create RabbitMQ queue", nil
 	}

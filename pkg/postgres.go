@@ -1,26 +1,27 @@
 package pkg
 
 import (
-	"log"
-
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"go.uber.org/zap"
 )
 
 const PostgresService = "postgres"
 
 type PostgresRepository struct {
-	db *sqlx.DB
+	db     *sqlx.DB
+	logger *zap.Logger
 }
 
-func NewPostgres(host, port, user, password, dbname, sslMode string) (*PostgresRepository, func()) {
+func NewPostgres(logger *zap.Logger, host, port, user, password, dbname, sslMode string) (*PostgresRepository, func()) {
 	dataSourceName := "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=" + dbname + " sslmode=" + sslMode
 	db, err := sqlx.Connect("postgres", dataSourceName)
 	if err != nil {
-		log.Fatalln(err)
+		logger.Fatal(err.Error())
 	}
 	r := &PostgresRepository{
-		db: db,
+		db:     db,
+		logger: logger,
 	}
 	return r, r.Shutdown()
 }
@@ -28,7 +29,7 @@ func NewPostgres(host, port, user, password, dbname, sslMode string) (*PostgresR
 func (r *PostgresRepository) Shutdown() func() {
 	return func() {
 		if err := r.db.Close(); err != nil {
-			log.Fatalln(err)
+			r.logger.Fatal(err.Error())
 		}
 	}
 }

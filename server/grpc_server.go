@@ -2,29 +2,30 @@ package server
 
 import (
 	"fmt"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
 	"log"
 	"net"
-	"service-template/pkg"
-
-	"google.golang.org/grpc"
 )
 
 type MyGRPCServer struct {
 	port   string
 	server *grpc.Server
+	logger *zap.Logger
 }
 
 // NewMyGRPCServer создает новый экземпляр gRPC сервера.
-func newMyGRPCServer(port string) *MyGRPCServer {
+func newMyGRPCServer(logger *zap.Logger, port string) *MyGRPCServer {
 	return &MyGRPCServer{
-		port: port,
+		port:   port,
+		logger: logger,
 	}
 }
 
 // Start запускает gRPC сервер.
-func (s *MyGRPCServer) Start(registerServices func(*grpc.Server)) func() {
+func (s *MyGRPCServer) Start(registerServices func(*grpc.Server), interceptors ...grpc.ServerOption) func() {
 	// Создаём gRPC сервер.
-	s.server = grpc.NewServer()
+	s.server = grpc.NewServer(interceptors...)
 
 	// Регистрируем службы.
 	registerServices(s.server)
@@ -38,13 +39,13 @@ func (s *MyGRPCServer) Start(registerServices func(*grpc.Server)) func() {
 	}
 
 	go func() {
-		l := pkg.GetLogger()
+		//l := pkg.GetLogger()
 		defer func() {
 			if r := recover(); r != nil {
-				l.Error(fmt.Sprintf("Recovered from gRPC server: %v", r))
+				s.logger.Error(fmt.Sprintf("Recovered from gRPC server: %v", r))
 			}
 		}()
-		l.Info(fmt.Sprintf("gRPC server is running on %s", s.port))
+		s.logger.Info(fmt.Sprintf("gRPC server is running on %s", s.port))
 		if err = s.server.Serve(listener); err != nil {
 			panic(fmt.Sprintf("Server gRPC stopped by error: %v", err))
 		}
@@ -55,14 +56,14 @@ func (s *MyGRPCServer) Start(registerServices func(*grpc.Server)) func() {
 
 // Shutdown завершает работу сервера.
 func (s *MyGRPCServer) shutdown() {
-	log.Println("Shutting down gRPC server...")
+	s.logger.Info("Shutting down gRPC server...")
 	s.server.GracefulStop()
-	log.Println("gRPC server has stopped.")
+	s.logger.Info("gRPC server has stopped.")
 }
 
 // CreateGRPCServer создаёт и запускает gRPC сервер.
-func CreateGRPCServer(registerServices func(*grpc.Server), port string) func() {
-	grpcServer := newMyGRPCServer(port)
+func CreateGRPCServer(registerServices func(*grpc.Server), port string, logger *zap.Logger) func() {
+	grpcServer := newMyGRPCServer(logger, port)
 	shutdownFunc := grpcServer.Start(registerServices)
 	return shutdownFunc
 }

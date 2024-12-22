@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"go.uber.org/zap"
 	"log"
 )
 
@@ -26,12 +27,14 @@ type LocatorInterface interface {
 type Container struct {
 	container    map[string]any
 	requirements map[string]any
+	logger       *zap.Logger
 }
 
-func NewContainer(serviceInit ...*ServiceInit) *Container {
+func NewContainer(logger *zap.Logger, serviceInit ...*ServiceInit) *Container {
 	container := &Container{
 		container:    make(map[string]any),
 		requirements: make(map[string]any),
+		logger:       logger,
 	}
 	for _, v := range serviceInit {
 		container.setRequirements(v.Name, v.Service)
@@ -67,7 +70,7 @@ func (c *Container) Get(key string) any {
 }
 
 func (c *Container) NewServiceLocator(services ...string) LocatorInterface {
-	localContainer := NewContainer()
+	localContainer := NewContainer(c.logger)
 
 	for _, serviceName := range services {
 		serviceFromContainer := c.getForLocator(serviceName)

@@ -2,8 +2,8 @@ package pkg
 
 import (
 	"context"
+	"fmt"
 	"github.com/rabbitmq/amqp091-go"
-	"log"
 )
 
 func (m *Migrations) set(ctx context.Context, version int, description string) error {
@@ -12,7 +12,7 @@ func (m *Migrations) set(ctx context.Context, version int, description string) e
         VALUES ($1, $2, TRUE) ON CONFLICT (version_id) DO NOTHING
     `, version, description)
 	if err != nil {
-		log.Printf("Ошибка при фиксации миграции: %v", err)
+		m.logger.Info(fmt.Sprintf("Ошибка при фиксации миграции: %v", err))
 		return err
 	}
 	return nil
@@ -26,11 +26,11 @@ func (m *Migrations) applyCustom(
 ) {
 	exists, err := m.exists(ctx, version)
 	if err != nil {
-		log.Fatalf("Ошибка при проверке наличия миграции: %v", err)
+		m.logger.Info(fmt.Sprintf("Ошибка при проверке наличия миграции: %v", err))
 	}
 
 	if exists {
-		log.Printf("Миграция с версией %d уже применена, пропускаем...", version)
+		m.logger.Info(fmt.Sprintf("Миграция с версией %d уже применена, пропускаем...", version))
 		return
 	}
 
@@ -38,18 +38,18 @@ func (m *Migrations) applyCustom(
 	for _, conn := range connections {
 		ch, err := conn.Channel()
 		if err != nil {
-			log.Fatalf("Ошибка при создании канала: %v", err)
+			m.logger.Fatal(fmt.Sprintf("Ошибка при создании канала: %v", err))
 		}
 		description, err = migration(ch)
 		if err != nil {
 			ch.Close()
-			log.Fatalf("Ошибка при выполнении миграции: %v", err)
+			m.logger.Info(fmt.Sprintf("Ошибка при выполнении миграции: %v", err))
 		}
 		ch.Close()
 	}
 
 	if err := m.set(ctx, version, description); err != nil {
-		log.Fatalf("Ошибка при фиксации миграции: %v", err)
+		m.logger.Info(fmt.Sprintf("Ошибка при фиксации миграции: %v", err))
 	}
 }
 

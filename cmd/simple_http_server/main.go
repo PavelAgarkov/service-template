@@ -27,12 +27,12 @@ import (
 // @host localhost:3000
 // @BasePath /
 func main() {
+	logger := pkg.NewLogger("simple_http_server")
 	father, cancel := context.WithCancel(context.Background())
-	father = pkg.LoggerWithCtx(father, pkg.GetLogger())
+	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
-	l := pkg.LoggerFromCtx(father)
 
-	l.Info("config initializing")
+	logger.Info("config initializing")
 	cfg := config.GetConfig()
 
 	sig := make(chan os.Signal, 1)
@@ -41,22 +41,31 @@ func main() {
 
 	go func() {
 		<-sig
-		l.Info("Signal received. Shutting down server...")
+		logger.Info("Signal received. Shutting down server...")
 		cancel()
 	}()
 
-	app := application.NewApp()
+	app := application.NewApp(logger)
 	defer func() {
 		app.Stop()
-		l.Info("app is stopped")
+		logger.Info("app is stopped")
 	}()
 
-	postgres, postgresShutdown := pkg.NewPostgres(cfg.DB.Host, cfg.DB.Port, cfg.DB.Username, cfg.DB.Password, cfg.DB.Database, "disable")
+	postgres, postgresShutdown := pkg.NewPostgres(
+		logger,
+		cfg.DB.Host,
+		cfg.DB.Port,
+		cfg.DB.Username,
+		cfg.DB.Password,
+		cfg.DB.Database,
+		"disable",
+	)
 	app.RegisterShutdown("postgres", postgresShutdown, 100)
 
-	pkg.NewMigrations(postgres.GetDB().DB).Migrate("./migrations", "goose_db_version")
+	pkg.NewMigrations(postgres.GetDB().DB, logger).Migrate("./migrations", "goose_db_version")
 
 	container := internal.NewContainer(
+		logger,
 		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
 	).
@@ -66,9 +75,10 @@ func main() {
 	handlers := http_handler.NewHandlers(container)
 
 	simpleHttpServerShutdownFunction := server.CreateHttpServer(
+		logger,
 		handlerList(handlers),
 		":3000",
-		server.LoggerContextMiddleware,
+		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
 	)

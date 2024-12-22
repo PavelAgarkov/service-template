@@ -2,57 +2,46 @@ package pkg
 
 import (
 	"context"
-	"os"
-	"sync"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"os"
 )
 
 type ctxKey struct{}
 
-var (
-	once   sync.Once
-	logger *zap.Logger
-)
+func NewLogger(appName string) *zap.Logger {
+	stdout := zapcore.AddSync(os.Stdout)
 
-func GetLogger() *zap.Logger {
-	once.Do(func() {
-		stdout := zapcore.AddSync(os.Stdout)
-
-		file := zapcore.AddSync(&lumberjack.Logger{
-			Filename:   "logs/app.log",
-			MaxSize:    5,
-			MaxBackups: 10,
-			MaxAge:     14,
-			Compress:   true,
-		})
-
-		// FIXME: change the level based on the config
-		level := zap.DebugLevel
-
-		logLevel := zap.NewAtomicLevelAt(level)
-
-		productionCfg := zap.NewProductionEncoderConfig()
-
-		developmentCfg := zap.NewDevelopmentEncoderConfig()
-		developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
-
-		consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
-		fileEncoder := zapcore.NewJSONEncoder(productionCfg)
-
-		// log to multiple destinations (console and file)
-		// extra fields are added to the JSON output alone
-		core := zapcore.NewTee(
-			zapcore.NewCore(consoleEncoder, stdout, logLevel),
-			zapcore.NewCore(fileEncoder, file, logLevel),
-		)
-
-		logger = zap.New(core)
+	file := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   "logs/app.log",
+		MaxSize:    5,
+		MaxBackups: 10,
+		MaxAge:     14,
+		Compress:   true,
 	})
 
-	return logger
+	// FIXME: change the level based on the config
+	level := zap.DebugLevel
+
+	logLevel := zap.NewAtomicLevelAt(level)
+
+	productionCfg := zap.NewProductionEncoderConfig()
+
+	developmentCfg := zap.NewDevelopmentEncoderConfig()
+	developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+
+	consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
+	fileEncoder := zapcore.NewJSONEncoder(productionCfg)
+
+	// log to multiple destinations (console and file)
+	// extra fields are added to the JSON output alone
+	core := zapcore.NewTee(
+		zapcore.NewCore(consoleEncoder, stdout, logLevel),
+		zapcore.NewCore(fileEncoder, file, logLevel),
+	)
+
+	return zap.New(core).With(zap.String("application", appName))
 }
 
 func LoggerFromCtx(ctx context.Context) *zap.Logger {
@@ -60,7 +49,7 @@ func LoggerFromCtx(ctx context.Context) *zap.Logger {
 		return l
 	}
 
-	return zap.NewNop()
+	return nil
 }
 
 func LoggerWithCtx(ctx context.Context, l *zap.Logger) context.Context {

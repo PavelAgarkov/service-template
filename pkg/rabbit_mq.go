@@ -1,9 +1,10 @@
 package pkg
 
 import (
+	"fmt"
 	amqp "github.com/rabbitmq/amqp091-go"
 	gorabbitmq "github.com/wagslane/go-rabbitmq"
-	"log"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -30,10 +31,14 @@ type Return struct {
 	Body            string     `json:"body"`
 }
 
-type RabbitMQ struct{}
+type RabbitMQ struct {
+	logger *zap.Logger
+}
 
-func NewRabbitMQ() *RabbitMQ {
-	return &RabbitMQ{}
+func NewRabbitMQ(logger *zap.Logger) *RabbitMQ {
+	return &RabbitMQ{
+		logger: logger,
+	}
 }
 
 func (r *RabbitMQ) RegisterPublisher(
@@ -44,7 +49,7 @@ func (r *RabbitMQ) RegisterPublisher(
 ) *gorabbitmq.Publisher {
 	publisher, err := gorabbitmq.NewPublisher(conn, optionFuncs...)
 	if err != nil {
-		log.Fatalf("failed to create publisher: %v", err)
+		r.logger.Fatal(fmt.Sprintf("failed to create publisher: %v", err))
 	}
 	// события, которые происходят при публикации сообщения с несуществующим routing key или exchange
 	publisher.NotifyReturn(returnHandler)
@@ -63,7 +68,7 @@ func (r *RabbitMQ) RegisterConsumer(
 ) *gorabbitmq.Consumer {
 	consumer, err := gorabbitmq.NewConsumer(conn, queue, optionFuncs...)
 	if err != nil {
-		log.Fatalf("failed to create consumer1: %v", err)
+		r.logger.Fatal(fmt.Sprintf("failed to create consumer1: %v", err))
 	}
 
 	return consumer
