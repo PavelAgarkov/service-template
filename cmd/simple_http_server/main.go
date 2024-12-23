@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,7 +29,7 @@ import (
 // @host localhost:3000
 // @BasePath /
 func main() {
-	logger := pkg.NewLogger("simple_http_server")
+	logger := pkg.NewLogger("simple_http_server", "logs/app.log")
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
@@ -46,6 +48,12 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	app.RegisterShutdown("logger", func() {
+		err := logger.Sync()
+		if err != nil {
+			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
+		}
+	}, 101)
 	defer func() {
 		app.Stop()
 		logger.Info("app is stopped")

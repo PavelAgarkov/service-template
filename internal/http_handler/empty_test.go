@@ -33,7 +33,7 @@ func (suite *EmptyTestSuite) SetupSuite() {
 	}
 	suite.pgContainer = pgContainer
 
-	logger := pkg.NewLogger("test")
+	logger := pkg.NewLogger("test", "logs/app.log")
 
 	postgres, _ := pkg.NewPostgres(
 		logger,

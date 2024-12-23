@@ -21,7 +21,7 @@ import (
 )
 
 func main() {
-	logger := pkg.NewLogger("background_rabbit")
+	logger := pkg.NewLogger("background_rabbit", "logs/app.log")
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
@@ -40,6 +40,12 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	app.RegisterShutdown("logger", func() {
+		err := logger.Sync()
+		if err != nil {
+			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
+		}
+	}, 101)
 	defer func() {
 		app.Stop()
 		logger.Info("app is stopped")

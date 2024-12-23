@@ -10,11 +10,11 @@ import (
 
 type ctxKey struct{}
 
-func NewLogger(appName string) *zap.Logger {
+func NewLogger(appName string, logfile string) *zap.Logger {
 	stdout := zapcore.AddSync(os.Stdout)
 
 	file := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   "logs/app.log",
+		Filename:   logfile,
 		MaxSize:    5,
 		MaxBackups: 10,
 		MaxAge:     14,

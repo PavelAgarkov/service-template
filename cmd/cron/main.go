@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/redis/go-redis/v9"
+	"log"
 	"os"
 	"os/signal"
 	"service-template/application"
@@ -19,7 +20,7 @@ import (
 )
 
 func main() {
-	logger := pkg.NewLogger("cron")
+	logger := pkg.NewLogger("cron", "logs/app.log")
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
@@ -38,6 +39,12 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	app.RegisterShutdown("logger", func() {
+		err := logger.Sync()
+		if err != nil {
+			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
+		}
+	}, 101)
 	defer func() {
 		app.Stop()
 		logger.Info("app is stopped")
