@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Эхо-Тест</title>
+</head>
+<body>
+<h1>WebSocket Эхо-Тест</h1>
+<input id="messageInput" type="text" placeholder="Введите сообщение">
+<button onclick="sendMessage()">Отправить</button>
+<ul id="messages"></ul>
+
+<script>
+    let ws;
+
+    function init() {
+        // Устанавливаем соединение с WebSocket-сервером
+        ws = new WebSocket("ws://" + window.location.host + "/ws");
+
+        ws.onopen = function() {
+            console.log("Соединение открыто");
+        };
+
+        ws.onmessage = function(event) {
+            const messages = document.getElementById("messages");
+            const messageItem = document.createElement("li");
+            messageItem.textContent = "Получено: " + event.data;
+            messages.appendChild(messageItem);
+        };
+
+        ws.onclose = function() {
+            console.log("Соединение закрыто");
+        };
+
+        ws.onerror = function(error) {
+            console.error("WebSocket ошибка:", error);
+        };
+    }
+
+    function sendMessage() {
+        const input = document.getElementById("messageInput");
+        const message = input.value;
+        if (message && ws.readyState === WebSocket.OPEN) {
+            ws.send(message);
+            input.value = "";
+            const messages = document.getElementById("messages");
+            const messageItem = document.createElement("li");
+            messageItem.textContent = "Отправлено: " + message;
+            messages.appendChild(messageItem);
+        }
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>

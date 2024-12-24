@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"github.com/rs/xid"
 	"go.uber.org/zap"
 	"log"
+	"net"
 	"net/http"
 	"service-template/pkg"
 	"time"
@@ -22,6 +24,33 @@ const (
 type loggingResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
+}
+
+// Override метода WriteHeader для логирования статуса
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.statusCode = code
+	lrw.ResponseWriter.WriteHeader(code)
+}
+
+// Override метода Write (опционально)
+func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
+	return lrw.ResponseWriter.Write(data)
+}
+
+// Реализация интерфейса http.Hijacker
+func (lrw *loggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := lrw.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("the ResponseWriter does not implement http.Hijacker")
+	}
+	return hj.Hijack()
+}
+
+// Реализация интерфейса http.Flusher
+func (lrw *loggingResponseWriter) Flush() {
+	if flusher, ok := lrw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
