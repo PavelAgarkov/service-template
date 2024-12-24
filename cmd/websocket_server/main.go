@@ -34,13 +34,9 @@ func main() {
 		logger.Info("app is stopped")
 	}()
 
-	container := internal.NewContainer(
-		logger,
-	)
+	container := internal.NewContainer(logger)
 
 	hub := server.NewHub()
-
-	//hub.CollectGarbageConnections(father, logger)
 	app.RegisterShutdown("garbage_collector", hub.CollectGarbageConnections(father, logger), 1)
 	upgrader := server.NewUpgrader()
 	handlers := websocket_handler.NewHandlers(container, hub, upgrader)
@@ -59,7 +55,7 @@ func main() {
 
 func handlerList(father context.Context, handlers *websocket_handler.Handlers) func(simple *server.SimpleHTTPServer) {
 	return func(simple *server.SimpleHTTPServer) {
-		simple.Router.PathPrefix("/ws").Handler(http.HandlerFunc(handlers.Echo(father)))
+		simple.Router.PathPrefix("/ws").Handler(http.HandlerFunc(handlers.Ws(father)))
 
 		simple.Router.PathPrefix("/").Handler(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

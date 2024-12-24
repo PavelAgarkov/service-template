@@ -9,9 +9,17 @@ import (
 	"time"
 )
 
-type Client struct {
-	hub *Hub
+type RequestWsMessage struct {
+	Message string `json:"message"`
+	Route   string `json:"route"`
+}
 
+type Message struct {
+	Type int
+	Data []byte
+}
+type Client struct {
+	hub  *Hub
 	conn *websocket.Conn
 }
 
@@ -20,23 +28,6 @@ func NewClient(hub *Hub, conn *websocket.Conn) *Client {
 		hub:  hub,
 		conn: conn,
 	}
-}
-
-func (h *Hub) CollectGarbageConnections(father context.Context, logger *zap.Logger) func() {
-	return func() {
-		h.mu.Lock()
-		for client := range h.clients {
-			err := client.conn.Close()
-			if err != nil {
-				logger.Error("Ошибка при закрытии соединения", zap.Error(err))
-				continue
-			}
-			delete(h.clients, client)
-			logger.Info("Соединение закрыто и удалено из списка")
-		}
-		h.mu.Unlock()
-	}
-
 }
 
 type Hub struct {
@@ -64,23 +55,36 @@ func (h *Hub) Unregister(client *Client) {
 	}
 }
 
+func (h *Hub) CollectGarbageConnections(father context.Context, logger *zap.Logger) func() {
+	return func() {
+		h.mu.Lock()
+		for client := range h.clients {
+			err := client.conn.Close()
+			if err != nil {
+				logger.Error("Ошибка при закрытии соединения", zap.Error(err))
+				continue
+			}
+			delete(h.clients, client)
+			logger.Info("Соединение закрыто и удалено из списка")
+		}
+		h.mu.Unlock()
+	}
+
+}
+
 func NewUpgrader() *websocket.Upgrader {
 	return &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
+		// Проверка origin для безопасности необходима в продакшене
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
 	}
 }
 
-type Message struct {
-	Type int
-	Data []byte
-}
-
-func WritePump(father context.Context, conn *websocket.Conn, send chan Message, logger *zap.Logger) {
-	ticker := time.NewTicker(30 * time.Second)
+func (c *Client) WritePump(father context.Context, responses chan Message, logger *zap.Logger, dur time.Duration) {
+	ticker := time.NewTicker(dur)
 	defer ticker.Stop()
 
 	for {
@@ -88,25 +92,28 @@ func WritePump(father context.Context, conn *websocket.Conn, send chan Message, 
 		case <-father.Done():
 			logger.Info("Закрытие соединения")
 			return
-		case msg, ok := <-send:
-			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		case msg, ok := <-responses:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if !ok {
-				err := conn.WriteMessage(websocket.CloseMessage, []byte{})
+				err := c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				if err != nil {
 					logger.Error("Ошибка при отправке сообщения закрытия", zap.Error(err))
 					return
+				} else {
+					logger.Info("Сообщение закрытия отправлено")
 				}
 				return
 			}
-			err := conn.WriteMessage(msg.Type, msg.Data)
+			err := c.conn.WriteMessage(msg.Type, msg.Data)
 			if err != nil {
 				logger.Error("Ошибка при отправке сообщения", zap.Error(err))
 				break
 			}
 		case <-ticker.C:
-			// Дополнительная отправка пингов, если необходимо
-			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			// Дополнительная отправка пингов, необходимо для продления соединения в некоторых случаях
+			logger.Info("Отправка пинга")
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				logger.Error("Ошибка при отправке пинга", zap.Error(err))
 				return
 			}

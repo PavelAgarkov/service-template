@@ -2,52 +2,96 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>WebSocket Эхо-Тест</title>
+    <title>WebSocket Чат Клиент</title>
+    <style>
+        /* Ваши стили остаются без изменений */
+    </style>
 </head>
 <body>
-<h1>WebSocket Эхо-Тест</h1>
+<h1>WebSocket Чат Клиент</h1>
+<label for="routeSelect">Выберите маршрут:</label>
+<select id="routeSelect">
+    <option value="chat/sendMessage">Отправить Сообщение</option>
+    <option value="user/register">Регистрация Пользователя</option>
+    <option value="ping">Ping</option> <!-- Добавлено -->
+    <!-- Добавьте другие маршруты по необходимости -->
+</select>
+<br><br>
 <input id="messageInput" type="text" placeholder="Введите сообщение">
 <button onclick="sendMessage()">Отправить</button>
 <ul id="messages"></ul>
 
 <script>
     let ws;
+    let pingInterval;
 
     function init() {
         // Устанавливаем соединение с WebSocket-сервером
         ws = new WebSocket("ws://" + window.location.host + "/ws");
 
-        ws.onopen = function() {
+        ws.onopen = function () {
             console.log("Соединение открыто");
+            appendMessage("Система", "Соединение установлено.");
         };
 
-        ws.onmessage = function(event) {
-            const messages = document.getElementById("messages");
-            const messageItem = document.createElement("li");
-            messageItem.textContent = "Получено: " + event.data;
-            messages.appendChild(messageItem);
+        ws.onmessage = function (event) {
+            console.log("Получено сообщение от сервера:", event.data); // Логирование
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.route === "chat/receiveMessage") {
+                    appendMessage(msg.sender, msg.message);
+                } else if (msg.route === "user/registerResponse") {
+                    appendMessage("Система", msg.message);
+                } else if (msg.route === "error") {
+                    appendMessage("Ошибка", msg.message);
+                } else if (msg.route === "pong") {
+                    appendMessage("Система", "Получен pong от сервера.");
+                    console.log("Pong получен от сервера в:", new Date().toLocaleTimeString());
+                } else {
+                    appendMessage("Неизвестный маршрут", event.data);
+                }
+            } catch (e) {
+                appendMessage("Ошибка", "Неверный формат сообщения: " + event.data);
+            }
         };
 
-        ws.onclose = function() {
+        ws.onclose = function () {
             console.log("Соединение закрыто");
+            appendMessage("Система", "Соединение закрыто.");
         };
 
-        ws.onerror = function(error) {
+        ws.onerror = function (error) {
             console.error("WebSocket ошибка:", error);
+            appendMessage("Ошибка", "WebSocket ошибка: " + error);
         };
     }
 
     function sendMessage() {
         const input = document.getElementById("messageInput");
-        const message = input.value;
+        const routeSelect = document.getElementById("routeSelect");
+        const message = input.value.trim();
+        const route = routeSelect.value;
+
         if (message && ws.readyState === WebSocket.OPEN) {
-            ws.send(message);
+            const payload = {
+                message: message,
+                route: route
+            };
+            console.log("Отправка сообщения:", JSON.stringify(payload)); // Логирование
+            ws.send(JSON.stringify(payload));
+            appendMessage("Вы", message);
             input.value = "";
-            const messages = document.getElementById("messages");
-            const messageItem = document.createElement("li");
-            messageItem.textContent = "Отправлено: " + message;
-            messages.appendChild(messageItem);
+        } else {
+            alert("Соединение не установлено или сообщение пустое.");
         }
+    }
+
+    function appendMessage(sender, message) {
+        const messages = document.getElementById("messages");
+        const messageItem = document.createElement("li");
+        messageItem.textContent = `${sender}: ${message}`;
+        messages.appendChild(messageItem);
+        messages.scrollTop = messages.scrollHeight;
     }
 
     window.onload = init;
