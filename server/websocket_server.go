@@ -9,9 +9,25 @@ import (
 	"time"
 )
 
-type RequestWsMessage struct {
+type Routable interface {
+	Route() string
+}
+
+type FirstRequestWsMessage struct {
+	Routing string `json:"routing"`
+}
+
+func (r *FirstRequestWsMessage) Route() string {
+	return "first"
+}
+
+type SecondRequestWsMessage struct {
 	Message string `json:"message"`
-	Route   string `json:"route"`
+	Routing string `json:"routing"`
+}
+
+func (r *SecondRequestWsMessage) Route() string {
+	return "second"
 }
 
 type Message struct {
@@ -55,7 +71,7 @@ func (h *Hub) Unregister(client *Client) {
 	}
 }
 
-func (h *Hub) CollectGarbageConnections(father context.Context, logger *zap.Logger) func() {
+func (h *Hub) CollectGarbageConnections(logger *zap.Logger) func() {
 	return func() {
 		h.mu.Lock()
 		for client := range h.clients {
@@ -97,7 +113,7 @@ func (c *Client) WritePump(father context.Context, responses chan Message, logge
 			if !ok {
 				err := c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				if err != nil {
-					logger.Error("Ошибка при отправке сообщения закрытия", zap.Error(err))
+					logger.Info("Сервер уже закрыл соединение, поэтому не доставляется клиенту сообщение о закрытии")
 					return
 				} else {
 					logger.Info("Сообщение закрытия отправлено")

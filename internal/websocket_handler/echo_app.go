@@ -2,7 +2,6 @@ package websocket_handler
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"net/http"
@@ -14,6 +13,13 @@ import (
 
 func (h *Handlers) Ws(father context.Context) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rmes := recover(); rmes != nil {
+				logger := pkg.LoggerFromCtx(r.Context())
+				logger.Error("Паника в обработчике /ws", zap.Any("recovered", rmes))
+			}
+		}()
+
 		logger := pkg.LoggerFromCtx(r.Context())
 		logger.Info("Попытка подключения к /ws")
 
@@ -61,18 +67,29 @@ func (h *Handlers) Ws(father context.Context) func(w http.ResponseWriter, r *htt
 		for {
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				if websocket.IsCloseError(err, websocket.CloseNoStatusReceived) {
+					logger.Info("Соединение закрыто клиентом")
+					break MainLoop
+				} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					logger.Error("Неожиданная ошибка при чтении сообщения", zap.Error(err))
 				} else {
-					logger.Info("Соединение закрыто")
+					logger.Error("Соединение закрыто", zap.Error(err))
 					break MainLoop
 				}
 			}
 
-			msg := &server.RequestWsMessage{}
-			if err := json.Unmarshal(message, msg); err != nil {
+			msg, err := h.wsrouter.AssertMessageType(message)
+			if err != nil {
 				logger.Error("Ошибка при декодировании сообщения", zap.Error(err))
-				break MainLoop
+				responses <- server.Message{Type: messageType, Data: []byte("Ошибка при декодировании сообщения")}
+				continue
+			}
+
+			err = h.wsrouter.HandleMessage(r.Context(), msg)
+			if err != nil {
+				logger.Error("Ошибка при обработке сообщения", zap.Error(err))
+				responses <- server.Message{Type: messageType, Data: []byte("Ошибка при обработке сообщения")}
+				continue
 			}
 
 			if father.Err() != nil {
@@ -81,7 +98,7 @@ func (h *Handlers) Ws(father context.Context) func(w http.ResponseWriter, r *htt
 				break MainLoop
 			}
 
-			logger.Info("Получено сообщение", zap.String("message", msg.Route))
+			logger.Info("Получено сообщение", zap.String("message", msg.Route()))
 
 			// Отправляем эхо-сообщение через канал send
 			responses <- server.Message{Type: messageType, Data: message}
@@ -89,6 +106,6 @@ func (h *Handlers) Ws(father context.Context) func(w http.ResponseWriter, r *htt
 		// Закрываем канал send и ждем завершения writePump, чтобы не случилась паника
 		close(responses)
 		wg.Wait()
-		logger.Info("Соединение закрыто клиентом")
+		logger.Info("Обработка соединения завершена")
 	}
 }

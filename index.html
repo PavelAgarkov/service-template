@@ -4,7 +4,27 @@
     <meta charset="UTF-8">
     <title>WebSocket Чат Клиент</title>
     <style>
-        /* Ваши стили остаются без изменений */
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        #messages {
+            list-style-type: none;
+            padding: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+        }
+
+        #messages li {
+            padding: 5px 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        #messages li:nth-child(odd) {
+            background-color: #f9f9f9;
+        }
     </style>
 </head>
 <body>
@@ -27,11 +47,12 @@
 
     function init() {
         // Устанавливаем соединение с WebSocket-сервером
-        ws = new WebSocket("ws://" + window.location.host + "/ws");
+        ws = new WebSocket("wss://" + window.location.host + "/ws");
 
         ws.onopen = function () {
             console.log("Соединение открыто");
             appendMessage("Система", "Соединение установлено.");
+            startHeartbeat(); // Запуск пинга
         };
 
         ws.onmessage = function (event) {
@@ -58,6 +79,7 @@
         ws.onclose = function () {
             console.log("Соединение закрыто");
             appendMessage("Система", "Соединение закрыто.");
+            stopHeartbeat(); // Остановка пинга при закрытии
         };
 
         ws.onerror = function (error) {
@@ -83,6 +105,33 @@
             input.value = "";
         } else {
             alert("Соединение не установлено или сообщение пустое.");
+        }
+    }
+
+    function startHeartbeat() {
+        pingInterval = setInterval(() => {
+            sendPing();
+        }, 30000); // Отправлять ping каждые 30 секунд
+    }
+
+    function stopHeartbeat() {
+        if (pingInterval) {
+            clearInterval(pingInterval);
+            pingInterval = null;
+        }
+    }
+
+    function sendPing() {
+        if (ws.readyState === WebSocket.OPEN) {
+            const payload = {
+                message: "ping",
+                route: "ping"
+            };
+            console.log("Отправка ping:", JSON.stringify(payload)); // Логирование
+            ws.send(JSON.stringify(payload));
+            appendMessage("Система", "Отправлен ping.");
+        } else {
+            alert("Соединение не установлено.");
         }
     }
 

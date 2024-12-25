@@ -37,18 +37,36 @@ func main() {
 	container := internal.NewContainer(logger)
 
 	hub := server.NewHub()
-	app.RegisterShutdown("garbage_collector", hub.CollectGarbageConnections(father, logger), 1)
+	app.RegisterShutdown("garbage_collector", hub.CollectGarbageConnections(logger), 1)
 	upgrader := server.NewUpgrader()
 	handlers := websocket_handler.NewHandlers(container, hub, upgrader)
+	handlers.RegisterWsRoutes(
+		map[string]func(ctx context.Context, message server.Routable) error{
+			"second": handlers.SecondHandler(),
+		})
 
-	simpleHttpServerShutdownFunction := server.CreateHttpServer(
+	//simpleHttpServerShutdownFunction := server.CreateHttpServer(
+	//	logger,
+	//	handlerList(father, handlers),
+	//	":8080",
+	//	server.LoggerContextMiddleware(logger),
+	//	server.RecoverMiddleware,
+	//	server.LoggingMiddleware,
+	//)
+
+	//https://chromewebstore.google.com/detail/simple-websocket-client/pfdhoblngboilpfeibdedpjgfnlcodoo
+	//openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+	simpleHttpServerShutdownFunction := server.CreateHttpsServer(
 		logger,
 		handlerList(father, handlers),
-		":8080",
+		":8080",      // Порт сервера
+		"./cert.pem", // Путь к сертификату
+		"./key.pem",  // Путь к ключу
 		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
 	)
+
 	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
 	<-father.Done()
 }
