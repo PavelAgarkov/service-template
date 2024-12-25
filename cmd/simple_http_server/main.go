@@ -82,7 +82,7 @@ func main() {
 
 	handlers := http_handler.NewHandlers(container)
 
-	simpleHttpServerShutdownFunction := server.CreateHttpServer(
+	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
 		handlerList(handlers),
 		":3000",
@@ -90,7 +90,19 @@ func main() {
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
 	)
-	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
+	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttp, 1)
+
+	simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
+		logger,
+		handlerList(handlers),
+		":8080",      // Порт сервера
+		"./cert.pem", // Путь к сертификату
+		"./key.pem",  // Путь к ключу
+		server.LoggerContextMiddleware(logger),
+		server.RecoverMiddleware,
+		server.LoggingMiddleware,
+	)
+	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
 
 	<-father.Done()
 }
