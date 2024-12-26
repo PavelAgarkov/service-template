@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"service-template/application"
-	_ "service-template/cmd/simple_http_server/docs"
+	_ "service-template/cmd/http_server/docs"
 	"service-template/config"
 	"service-template/internal"
 	"service-template/internal/http_handler"
@@ -85,7 +85,7 @@ func main() {
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
 		handlerList(handlers),
-		":3000",
+		":8081",
 		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
@@ -116,8 +116,8 @@ func main() {
 	<-father.Done()
 }
 
-func handlerList(handlers *http_handler.Handlers) func(simple *server.SimpleHTTPServer) {
-	return func(simple *server.SimpleHTTPServer) {
+func handlerList(handlers *http_handler.Handlers) func(simple *server.HTTPServer) {
+	return func(simple *server.HTTPServer) {
 		// http://localhost:3000/swagger/index.html
 		simple.Router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 		simple.Router.Handle("/empty", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")

@@ -38,10 +38,14 @@ func main() {
 		}
 	}, 101)
 
-	grpcsClient, shutdown, _ := server.NewGRPCSClientConnection("localhost:50052", "./server.crt")
+	grpcsClient, shutdown, _ := server.NewGRPCSClientConnection(
+		"localhost:50052",
+		"./server.crt",
+		logger,
+	)
 	app.RegisterShutdown("grpcsClient", func() { shutdown() }, 1)
 
-	grpcClient, shutdown, _ := server.NewGRPCClientConnection("localhost:50051")
+	grpcClient, shutdown, _ := server.NewGRPCClientConnection("localhost:50051", logger)
 	app.RegisterShutdown("grpcClient", func() { shutdown() }, 1)
 
 	DoWithTLS(grpcsClient)

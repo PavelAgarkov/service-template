@@ -1,27 +1,23 @@
 package server
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"net"
-	"os"
 )
 
-type MyGRPCServer struct {
+type GRPCServer struct {
 	port   string
 	server *grpc.Server
 	logger *zap.Logger
 }
 
 // NewMyGRPCServer создает новый экземпляр gRPC сервера.
-func newMyGRPCServer(logger *zap.Logger, port string) *MyGRPCServer {
-	return &MyGRPCServer{
+func newGRPCServer(logger *zap.Logger, port string) *GRPCServer {
+	return &GRPCServer{
 		port:   port,
 		logger: logger,
 	}
@@ -36,7 +32,7 @@ func loadTLSCredentials(serverCert, serverKey string) (credentials.TransportCred
 	return creds, nil
 }
 
-func (s *MyGRPCServer) StartTLS(
+func (s *GRPCServer) StartTLS(
 	serverCert, serverKey string,
 	registerServices func(*grpc.Server), interceptors ...grpc.ServerOption,
 ) func() {
@@ -73,7 +69,7 @@ func (s *MyGRPCServer) StartTLS(
 }
 
 // Start запускает gRPC сервер.
-func (s *MyGRPCServer) Start(registerServices func(*grpc.Server), interceptors ...grpc.ServerOption) func() {
+func (s *GRPCServer) Start(registerServices func(*grpc.Server), interceptors ...grpc.ServerOption) func() {
 	// Создаём gRPC сервер.
 	s.server = grpc.NewServer(interceptors...)
 
@@ -99,7 +95,7 @@ func (s *MyGRPCServer) Start(registerServices func(*grpc.Server), interceptors .
 }
 
 // Shutdown завершает работу сервера.
-func (s *MyGRPCServer) shutdown() {
+func (s *GRPCServer) shutdown() {
 	s.logger.Info("Shutting down gRPC server...")
 	s.server.GracefulStop()
 	s.logger.Info("gRPC server has stopped.")
@@ -107,7 +103,7 @@ func (s *MyGRPCServer) shutdown() {
 
 // CreateGRPCServer создаёт и запускает gRPC сервер.
 func CreateGRPCServer(registerServices func(*grpc.Server), port string, logger *zap.Logger) func() {
-	grpcServer := newMyGRPCServer(logger, port)
+	grpcServer := newGRPCServer(logger, port)
 	shutdownFunc := grpcServer.Start(registerServices)
 	return shutdownFunc
 }
@@ -116,58 +112,7 @@ func CreateGRPCServerTLS(serverCert, serverKey string,
 	registerServices func(*grpc.Server), port string,
 	logger *zap.Logger,
 ) func() {
-	grpcServer := newMyGRPCServer(logger, port)
+	grpcServer := newGRPCServer(logger, port)
 	shutdownFunc := grpcServer.StartTLS(serverCert, serverKey, registerServices)
 	return shutdownFunc
-}
-
-type GRPCClientConnection struct {
-	ClientConnection *grpc.ClientConn
-}
-
-func NewGRPCClientConnection(target string) (*GRPCClientConnection, func() error, error) {
-	conn, err := grpc.NewClient(
-		target,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		log.Fatalf("Failed to connect to gRPC server: %v", err)
-		return nil, nil, err
-	}
-	return &GRPCClientConnection{
-		ClientConnection: conn,
-	}, conn.Close, nil
-}
-
-func NewGRPCSClientConnection(target string, crt string) (*GRPCClientConnection, func() error, error) {
-	certData, err := os.ReadFile(crt)
-	if err != nil {
-		log.Fatalf("Could not read certificate file: %v", err)
-		return nil, nil, err
-	}
-
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(certData); !ok {
-		log.Fatalf("Failed to append cert from PEM")
-		return nil, nil, err
-	}
-
-	tlsConfig := &tls.Config{
-		RootCAs: certPool,
-		// При необходимости можно указать имя хоста (CN/SAN), который проверяется в сертификате:
-		// ServerName: "example.com",
-		// Если сертификат выписан на "localhost", оставляем пустым или проставляем "localhost".
-	}
-	creds := credentials.NewTLS(tlsConfig)
-
-	//conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
-	clientConn, err := grpc.NewClient(
-		target,
-		grpc.WithTransportCredentials(creds),
-	)
-	if err != nil {
-		log.Fatalf("Failed to connect to gRPC server: %v", err)
-		return nil, nil, err
-	}
-	return &GRPCClientConnection{ClientConnection: clientConn}, clientConn.Close, nil
 }
