@@ -80,20 +80,28 @@ func main() {
 		":50051",
 		logger,
 	)
-
-	//openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
-	//gRPCShutdown := server.CreateGRPCServerTLS(
-	//	"./cert.pem", // Путь к сертификату
-	//	"./key.pem",  // Путь к ключу
-	//	func(s *grpc.Server) {
-	//		myservice.RegisterMyServiceServer(s, grpc_handler.NewMyService(container))
-	//		myservice2.RegisterMyServiceServer(s, grpc_handler.NewMyService2(container))
-	//	},
-	//	":50051",
-	//	logger,
-	//)
-
 	app.RegisterShutdown("gRPC server", gRPCShutdown, 1)
+
+	//openssl req \
+	//-x509 \
+	//-nodes \
+	//-newkey rsa:4096 \
+	//-keyout server.key \
+	//-out server.crt \
+	//-days 365 \
+	//-subj "/CN=localhost" \
+	//-addext "subjectAltName=DNS:localhost"
+	gRPCSShutdown := server.CreateGRPCServerTLS(
+		"./server.crt", // Путь к сертификату
+		"./server.key", // Путь к ключу
+		func(s *grpc.Server) {
+			myservice.RegisterMyServiceServer(s, grpc_handler.NewMyService(container))
+			myservice2.RegisterMyServiceServer(s, grpc_handler.NewMyService2(container))
+		},
+		":50052",
+		logger,
+	)
+	app.RegisterShutdown("gRPCS server", gRPCSShutdown, 1)
 
 	<-father.Done()
 }

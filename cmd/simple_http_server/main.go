@@ -92,12 +92,21 @@ func main() {
 	)
 	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttp, 1)
 
+	//openssl req \
+	//-x509 \
+	//-nodes \
+	//-newkey rsa:4096 \
+	//-keyout server.key \
+	//-out server.crt \
+	//-days 365 \
+	//-subj "/CN=localhost" \
+	//-addext "subjectAltName=DNS:localhost"
 	simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
 		logger,
 		handlerList(handlers),
-		":8080",      // Порт сервера
-		"./cert.pem", // Путь к сертификату
-		"./key.pem",  // Путь к ключу
+		":8080",        // Порт сервера
+		"./server.crt", // Путь к сертификату
+		"./server.key", // Путь к ключу
 		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,

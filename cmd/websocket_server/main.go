@@ -55,13 +55,21 @@ func main() {
 	//)
 
 	//https://chromewebstore.google.com/detail/simple-websocket-client/pfdhoblngboilpfeibdedpjgfnlcodoo
-	//openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+	//openssl req \
+	//-x509 \
+	//-nodes \
+	//-newkey rsa:4096 \
+	//-keyout server.key \
+	//-out server.crt \
+	//-days 365 \
+	//-subj "/CN=localhost" \
+	//-addext "subjectAltName=DNS:localhost"
 	simpleHttpServerShutdownFunction := server.CreateHttpsServer(
 		logger,
 		handlerList(father, handlers),
-		":8080",      // Порт сервера
-		"./cert.pem", // Путь к сертификату
-		"./key.pem",  // Путь к ключу
+		":8080",        // Порт сервера
+		"./server.crt", // Путь к сертификату
+		"./server.key", // Путь к ключу
 		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,

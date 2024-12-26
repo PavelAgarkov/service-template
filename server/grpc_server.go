@@ -1,12 +1,16 @@
 package server
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"net"
+	"os"
 )
 
 type MyGRPCServer struct {
@@ -24,9 +28,6 @@ func newMyGRPCServer(logger *zap.Logger, port string) *MyGRPCServer {
 }
 
 func loadTLSCredentials(serverCert, serverKey string) (credentials.TransportCredentials, error) {
-	//serverCert := "path/to/yourserver.crt"
-	//serverKey := "path/to/yourserver.key"
-
 	creds, err := credentials.NewServerTLSFromFile(serverCert, serverKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load TLS credentials: %v", err)
@@ -62,12 +63,6 @@ func (s *MyGRPCServer) StartTLS(
 	}
 
 	go func() {
-		//l := pkg.GetLogger()
-		//defer func() {
-		//	if r := recover(); r != nil {
-		//		s.logger.Error(fmt.Sprintf("Recovered from gRPC server: %v", r))
-		//	}
-		//}()
 		s.logger.Info(fmt.Sprintf("gRPC server is running on %s", s.port))
 		if err = s.server.Serve(listener); err != nil {
 			panic(fmt.Sprintf("Server gRPC stopped by error: %v", err))
@@ -94,12 +89,6 @@ func (s *MyGRPCServer) Start(registerServices func(*grpc.Server), interceptors .
 	}
 
 	go func() {
-		//l := pkg.GetLogger()
-		//defer func() {
-		//	if r := recover(); r != nil {
-		//		s.logger.Error(fmt.Sprintf("Recovered from gRPC server: %v", r))
-		//	}
-		//}()
 		s.logger.Info(fmt.Sprintf("gRPC server is running on %s", s.port))
 		if err = s.server.Serve(listener); err != nil {
 			panic(fmt.Sprintf("Server gRPC stopped by error: %v", err))
@@ -130,4 +119,55 @@ func CreateGRPCServerTLS(serverCert, serverKey string,
 	grpcServer := newMyGRPCServer(logger, port)
 	shutdownFunc := grpcServer.StartTLS(serverCert, serverKey, registerServices)
 	return shutdownFunc
+}
+
+type GRPCClientConnection struct {
+	ClientConnection *grpc.ClientConn
+}
+
+func NewGRPCClientConnection(target string) (*GRPCClientConnection, func() error, error) {
+	conn, err := grpc.NewClient(
+		target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Fatalf("Failed to connect to gRPC server: %v", err)
+		return nil, nil, err
+	}
+	return &GRPCClientConnection{
+		ClientConnection: conn,
+	}, conn.Close, nil
+}
+
+func NewGRPCSClientConnection(target string, crt string) (*GRPCClientConnection, func() error, error) {
+	certData, err := os.ReadFile(crt)
+	if err != nil {
+		log.Fatalf("Could not read certificate file: %v", err)
+		return nil, nil, err
+	}
+
+	certPool := x509.NewCertPool()
+	if ok := certPool.AppendCertsFromPEM(certData); !ok {
+		log.Fatalf("Failed to append cert from PEM")
+		return nil, nil, err
+	}
+
+	tlsConfig := &tls.Config{
+		RootCAs: certPool,
+		// При необходимости можно указать имя хоста (CN/SAN), который проверяется в сертификате:
+		// ServerName: "example.com",
+		// Если сертификат выписан на "localhost", оставляем пустым или проставляем "localhost".
+	}
+	creds := credentials.NewTLS(tlsConfig)
+
+	//conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+	clientConn, err := grpc.NewClient(
+		target,
+		grpc.WithTransportCredentials(creds),
+	)
+	if err != nil {
+		log.Fatalf("Failed to connect to gRPC server: %v", err)
+		return nil, nil, err
+	}
+	return &GRPCClientConnection{ClientConnection: clientConn}, clientConn.Close, nil
 }
