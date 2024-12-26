@@ -29,10 +29,10 @@ func main() {
 		cancel()
 	}()
 	app := application.NewApp(logger)
-	defer func() {
-		app.Stop()
-		logger.Info("app is stopped")
-	}()
+	//defer func() {
+	//	app.Stop()
+	//	logger.Info("app is stopped")
+	//}()
 
 	container := internal.NewContainer(logger)
 
@@ -45,14 +45,15 @@ func main() {
 			"second": handlers.SecondHandler(),
 		})
 
-	//simpleHttpServerShutdownFunction := server.CreateHttpServer(
-	//	logger,
-	//	handlerList(father, handlers),
-	//	":8080",
-	//	server.LoggerContextMiddleware(logger),
-	//	server.RecoverMiddleware,
-	//	server.LoggingMiddleware,
-	//)
+	simpleHttpServerShutdownFunction := server.CreateHttpServer(
+		logger,
+		handlerList(father, handlers),
+		":8081",
+		server.LoggerContextMiddleware(logger),
+		server.RecoverMiddleware,
+		server.LoggingMiddleware,
+	)
+	app.RegisterShutdown("websocket_http_server", simpleHttpServerShutdownFunction, 1)
 
 	//https://chromewebstore.google.com/detail/simple-websocket-client/pfdhoblngboilpfeibdedpjgfnlcodoo
 	//openssl req \
@@ -64,7 +65,7 @@ func main() {
 	//-days 365 \
 	//-subj "/CN=localhost" \
 	//-addext "subjectAltName=DNS:localhost"
-	simpleHttpServerShutdownFunction := server.CreateHttpsServer(
+	simpleHttpsServerShutdownFunction := server.CreateHttpsServer(
 		logger,
 		handlerList(father, handlers),
 		":8080",        // Порт сервера
@@ -75,12 +76,15 @@ func main() {
 		server.LoggingMiddleware,
 	)
 
-	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
+	app.RegisterShutdown("websocket_https_server", simpleHttpsServerShutdownFunction, 1)
+
 	<-father.Done()
+	app.Stop()
+	logger.Info("app is stopped")
 }
 
-func handlerList(father context.Context, handlers *websocket_handler.Handlers) func(simple *server.SimpleHTTPServer) {
-	return func(simple *server.SimpleHTTPServer) {
+func handlerList(father context.Context, handlers *websocket_handler.Handlers) func(simple *server.HTTPServer) {
+	return func(simple *server.HTTPServer) {
 		simple.Router.PathPrefix("/ws").Handler(http.HandlerFunc(handlers.Ws(father)))
 
 		simple.Router.PathPrefix("/").Handler(

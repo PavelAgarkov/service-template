@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -25,12 +26,11 @@ type singleHostRoundTripper struct {
 }
 
 func (s *singleHostRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	//if !strings.EqualFold(req.URL.Host, s.host) {
-	domain := req.URL.Scheme + "://" + req.URL.Host
-	if !strings.EqualFold(domain, s.host) {
+	//domain := req.URL.Scheme + "://" + req.URL.Host
+	domain := url.URL{Scheme: req.URL.Scheme, Host: req.URL.Host}
+	if !strings.EqualFold(domain.String(), s.host) {
 		return nil, fmt.Errorf("attempt to request disallowed host: %q (allowed only %q)", req.URL.Host, s.host)
 	}
-	// Передаём запрос базовому RoundTripper
 	return s.rt.RoundTrip(req)
 }
 
