@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"github.com/rs/xid"
 	"go.uber.org/zap"
 	"log"
+	"net"
 	"net/http"
 	"service-template/pkg"
 	"time"
@@ -22,6 +24,33 @@ const (
 type loggingResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
+}
+
+// Override метода WriteHeader для логирования статуса
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.statusCode = code
+	lrw.ResponseWriter.WriteHeader(code)
+}
+
+// Override метода Write (опционально)
+func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
+	return lrw.ResponseWriter.Write(data)
+}
+
+// Реализация интерфейса http.Hijacker
+func (lrw *loggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := lrw.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("the ResponseWriter does not implement http.Hijacker")
+	}
+	return hj.Hijack()
+}
+
+// Реализация интерфейса http.Flusher
+func (lrw *loggingResponseWriter) Flush() {
+	if flusher, ok := lrw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
@@ -94,22 +123,22 @@ func RecoverMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-type SimpleHTTPServer struct {
+type HTTPServer struct {
 	port   string
 	Router *mux.Router
 	logger *zap.Logger
 }
 
-func newSimpleHTTPServer(logger *zap.Logger, port string) *SimpleHTTPServer {
-	return &SimpleHTTPServer{
+func newSimpleHTTPServer(logger *zap.Logger, port string) *HTTPServer {
+	return &HTTPServer{
 		Router: mux.NewRouter(),
 		port:   port,
 		logger: logger,
 	}
 }
 
-// RunSimpleHTTPServer runs a simple HTTP server on the given port.
-func (simple *SimpleHTTPServer) RunSimpleHTTPServer(mwf ...mux.MiddlewareFunc) func() {
+// RunHTTPServer runs a simple HTTP server on the given port.
+func (simple *HTTPServer) RunHTTPServer(mwf ...mux.MiddlewareFunc) func() {
 	simple.Router.Use(mwf...)
 
 	server := &http.Server{
@@ -118,12 +147,6 @@ func (simple *SimpleHTTPServer) RunSimpleHTTPServer(mwf ...mux.MiddlewareFunc) f
 	}
 
 	go func() {
-		//l := pkg.GetLogger()
-		defer func() {
-			if r := recover(); r != nil {
-				simple.logger.Error(fmt.Sprintf("Recovered from panic: %v on server %v", r, simple.port))
-			}
-		}()
 		simple.logger.Info(fmt.Sprintf("Server is running on %s", simple.port))
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(fmt.Sprintf("Server stopped by error: %s", err))
@@ -134,12 +157,12 @@ func (simple *SimpleHTTPServer) RunSimpleHTTPServer(mwf ...mux.MiddlewareFunc) f
 	return simple.shutdown(server)
 }
 
-func (simple *SimpleHTTPServer) ToConfigureHandlers(configure func(simple *SimpleHTTPServer)) {
+func (simple *HTTPServer) ToConfigureHandlers(configure func(simple *HTTPServer)) {
 	configure(simple)
 }
 
 // Shutdown gracefully shuts down the server without interrupting any active connections.
-func (simple *SimpleHTTPServer) shutdown(server *http.Server) func() {
+func (simple *HTTPServer) shutdown(server *http.Server) func() {
 	return func() {
 		//l := pkg.GetLogger()
 		simple.logger.Info("Shutting down the server...")
@@ -157,9 +180,35 @@ func (simple *SimpleHTTPServer) shutdown(server *http.Server) func() {
 	}
 }
 
-func CreateHttpServer(logger *zap.Logger, fn func(simple *SimpleHTTPServer), port string, mwf ...mux.MiddlewareFunc) func() {
+func (simple *HTTPServer) RunHTTPSServer(certFile, keyFile string, mwf ...mux.MiddlewareFunc) func() {
+	simple.Router.Use(mwf...)
+
+	server := &http.Server{
+		Addr:    simple.port,
+		Handler: simple.Router,
+	}
+
+	go func() {
+		simple.logger.Info(fmt.Sprintf("Server is running on %s with TLS", simple.port))
+		if err := server.ListenAndServeTLS(certFile, keyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			panic(fmt.Sprintf("Server stopped by error: %s", err))
+		}
+		simple.logger.Info("Server has stopped")
+	}()
+
+	return simple.shutdown(server)
+}
+
+func CreateHttpsServer(logger *zap.Logger, fn func(simple *HTTPServer), port, certFile, keyFile string, mwf ...mux.MiddlewareFunc) func() {
 	serverHttp := newSimpleHTTPServer(logger, port)
 	serverHttp.ToConfigureHandlers(fn)
-	simpleHttpServerShutdownFunction := serverHttp.RunSimpleHTTPServer(mwf...)
+	simpleHttpServerShutdownFunction := serverHttp.RunHTTPSServer(certFile, keyFile, mwf...)
+	return simpleHttpServerShutdownFunction
+}
+
+func CreateHttpServer(logger *zap.Logger, fn func(simple *HTTPServer), port string, mwf ...mux.MiddlewareFunc) func() {
+	serverHttp := newSimpleHTTPServer(logger, port)
+	serverHttp.ToConfigureHandlers(fn)
+	simpleHttpServerShutdownFunction := serverHttp.RunHTTPServer(mwf...)
 	return simpleHttpServerShutdownFunction
 }

@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"service-template/application"
-	_ "service-template/cmd/simple_http_server/docs"
+	_ "service-template/cmd/http_server/docs"
 	"service-template/config"
 	"service-template/internal"
 	"service-template/internal/http_handler"
@@ -82,21 +82,42 @@ func main() {
 
 	handlers := http_handler.NewHandlers(container)
 
-	simpleHttpServerShutdownFunction := server.CreateHttpServer(
+	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
 		handlerList(handlers),
-		":3000",
+		":8081",
 		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
 	)
-	app.RegisterShutdown("simple_http_server", simpleHttpServerShutdownFunction, 1)
+	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttp, 1)
+
+	//openssl req \
+	//-x509 \
+	//-nodes \
+	//-newkey rsa:4096 \
+	//-keyout server.key \
+	//-out server.crt \
+	//-days 365 \
+	//-subj "/CN=localhost" \
+	//-addext "subjectAltName=DNS:localhost"
+	simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
+		logger,
+		handlerList(handlers),
+		":8080",        // Порт сервера
+		"./server.crt", // Путь к сертификату
+		"./server.key", // Путь к ключу
+		server.LoggerContextMiddleware(logger),
+		server.RecoverMiddleware,
+		server.LoggingMiddleware,
+	)
+	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
 
 	<-father.Done()
 }
 
-func handlerList(handlers *http_handler.Handlers) func(simple *server.SimpleHTTPServer) {
-	return func(simple *server.SimpleHTTPServer) {
+func handlerList(handlers *http_handler.Handlers) func(simple *server.HTTPServer) {
+	return func(simple *server.HTTPServer) {
 		// http://localhost:3000/swagger/index.html
 		simple.Router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 		simple.Router.Handle("/empty", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")

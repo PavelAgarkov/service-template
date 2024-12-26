@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Чат Клиент</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        #messages {
+            list-style-type: none;
+            padding: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+        }
+
+        #messages li {
+            padding: 5px 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        #messages li:nth-child(odd) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+<h1>WebSocket Чат Клиент</h1>
+<label for="routeSelect">Выберите маршрут:</label>
+<select id="routeSelect">
+    <option value="chat/sendMessage">Отправить Сообщение</option>
+    <option value="user/register">Регистрация Пользователя</option>
+    <option value="ping">Ping</option> <!-- Добавлено -->
+    <!-- Добавьте другие маршруты по необходимости -->
+</select>
+<br><br>
+<input id="messageInput" type="text" placeholder="Введите сообщение">
+<button onclick="sendMessage()">Отправить</button>
+<ul id="messages"></ul>
+
+<script>
+    let ws;
+    let pingInterval;
+
+    function init() {
+        // Устанавливаем соединение с WebSocket-сервером
+        ws = new WebSocket("wss://" + window.location.host + "/ws");
+
+        ws.onopen = function () {
+            console.log("Соединение открыто");
+            appendMessage("Система", "Соединение установлено.");
+            startHeartbeat(); // Запуск пинга
+        };
+
+        ws.onmessage = function (event) {
+            console.log("Получено сообщение от сервера:", event.data); // Логирование
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.route === "chat/receiveMessage") {
+                    appendMessage(msg.sender, msg.message);
+                } else if (msg.route === "user/registerResponse") {
+                    appendMessage("Система", msg.message);
+                } else if (msg.route === "error") {
+                    appendMessage("Ошибка", msg.message);
+                } else if (msg.route === "pong") {
+                    appendMessage("Система", "Получен pong от сервера.");
+                    console.log("Pong получен от сервера в:", new Date().toLocaleTimeString());
+                } else {
+                    appendMessage("Неизвестный маршрут", event.data);
+                }
+            } catch (e) {
+                appendMessage("Ошибка", "Неверный формат сообщения: " + event.data);
+            }
+        };
+
+        ws.onclose = function () {
+            console.log("Соединение закрыто");
+            appendMessage("Система", "Соединение закрыто.");
+            stopHeartbeat(); // Остановка пинга при закрытии
+        };
+
+        ws.onerror = function (error) {
+            console.error("WebSocket ошибка:", error);
+            appendMessage("Ошибка", "WebSocket ошибка: " + error);
+        };
+    }
+
+    function sendMessage() {
+        const input = document.getElementById("messageInput");
+        const routeSelect = document.getElementById("routeSelect");
+        const message = input.value.trim();
+        const route = routeSelect.value;
+
+        if (message && ws.readyState === WebSocket.OPEN) {
+            const payload = {
+                message: message,
+                route: route
+            };
+            console.log("Отправка сообщения:", JSON.stringify(payload)); // Логирование
+            ws.send(JSON.stringify(payload));
+            appendMessage("Вы", message);
+            input.value = "";
+        } else {
+            alert("Соединение не установлено или сообщение пустое.");
+        }
+    }
+
+    function startHeartbeat() {
+        pingInterval = setInterval(() => {
+            sendPing();
+        }, 30000); // Отправлять ping каждые 30 секунд
+    }
+
+    function stopHeartbeat() {
+        if (pingInterval) {
+            clearInterval(pingInterval);
+            pingInterval = null;
+        }
+    }
+
+    function sendPing() {
+        if (ws.readyState === WebSocket.OPEN) {
+            const payload = {
+                message: "ping",
+                route: "ping"
+            };
+            console.log("Отправка ping:", JSON.stringify(payload)); // Логирование
+            ws.send(JSON.stringify(payload));
+            appendMessage("Система", "Отправлен ping.");
+        } else {
+            alert("Соединение не установлено.");
+        }
+    }
+
+    function appendMessage(sender, message) {
+        const messages = document.getElementById("messages");
+        const messageItem = document.createElement("li");
+        messageItem.textContent = `${sender}: ${message}`;
+        messages.appendChild(messageItem);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
