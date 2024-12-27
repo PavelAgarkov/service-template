@@ -26,7 +26,6 @@ func main() {
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
-	//l := pkg.LoggerFromCtx(father)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -47,10 +46,10 @@ func main() {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	defer func() {
-		app.Stop()
-		logger.Info("app is stopped")
-	}()
+	//defer func() {
+	//	app.Stop()
+	//	logger.Info("app is stopped")
+	//}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(
 		logger,
@@ -104,4 +103,5 @@ func main() {
 	app.RegisterShutdown("gRPCS server", gRPCSShutdown, 1)
 
 	<-father.Done()
+	app.Stop()
 }

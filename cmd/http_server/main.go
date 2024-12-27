@@ -54,10 +54,10 @@ func main() {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	defer func() {
-		app.Stop()
-		logger.Info("app is stopped")
-	}()
+	//defer func() {
+	//	app.Stop()
+	//	logger.Info("app is stopped")
+	//}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(
 		logger,
@@ -114,6 +114,7 @@ func main() {
 	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
 
 	<-father.Done()
+	app.Stop()
 }
 
 func handlerList(handlers *http_handler.Handlers) func(simple *server.HTTPServer) {

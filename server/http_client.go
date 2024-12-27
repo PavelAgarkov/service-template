@@ -13,28 +13,27 @@ import (
 
 type HttpClientConnection struct {
 	ClientConnection *http.Client
-	baseURL          string
+	baseURL          url.URL
 }
 
-func (c *HttpClientConnection) GetBaseURL() string {
+func (c *HttpClientConnection) GetBaseURL() url.URL {
 	return c.baseURL
 }
 
 type singleHostRoundTripper struct {
-	host string
+	host url.URL
 	rt   http.RoundTripper
 }
 
 func (s *singleHostRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	//domain := req.URL.Scheme + "://" + req.URL.Host
 	domain := url.URL{Scheme: req.URL.Scheme, Host: req.URL.Host}
-	if !strings.EqualFold(domain.String(), s.host) {
+	if !strings.EqualFold(domain.String(), s.host.String()) {
 		return nil, fmt.Errorf("attempt to request disallowed host: %q (allowed only %q)", req.URL.Host, s.host)
 	}
 	return s.rt.RoundTrip(req)
 }
 
-func NewHttpClientConnection(target string) *HttpClientConnection {
+func NewHttpClientConnection(target url.URL) *HttpClientConnection {
 	singleHostTransport := &singleHostRoundTripper{
 		host: target,
 		rt:   http.DefaultTransport,
@@ -50,7 +49,7 @@ func NewHttpClientConnection(target string) *HttpClientConnection {
 	}
 }
 
-func NewHttpsClientConnection(target string, crt string, logger *zap.Logger) (*HttpClientConnection, error) {
+func NewHttpsClientConnection(target url.URL, crt string, logger *zap.Logger) (*HttpClientConnection, error) {
 	certData, err := os.ReadFile(crt)
 	if err != nil {
 		logger.Fatal("Could not read certificate file: %v", zap.Error(err))

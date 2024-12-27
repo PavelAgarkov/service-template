@@ -67,10 +67,10 @@ func (h *Handlers) Ws(father context.Context) func(w http.ResponseWriter, r *htt
 		for {
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
-				if websocket.IsCloseError(err, websocket.CloseNoStatusReceived) {
+				if websocket.IsCloseError(err, websocket.CloseNoStatusReceived, websocket.CloseAbnormalClosure) {
 					logger.Info("Соединение закрыто клиентом")
 					break MainLoop
-				} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
 					logger.Error("Неожиданная ошибка при чтении сообщения", zap.Error(err))
 				} else {
 					logger.Error("Соединение закрыто", zap.Error(err))

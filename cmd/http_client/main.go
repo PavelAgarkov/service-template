@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"os/signal"
 	"service-template/application"
@@ -38,8 +39,8 @@ func main() {
 		}
 	}, 101)
 
-	httpClient := server.NewHttpClientConnection("http://localhost:8081")
-	httpsClient, _ := server.NewHttpsClientConnection("https://localhost:8080", "./server.crt", logger)
+	httpClient := server.NewHttpClientConnection(url.URL{Scheme: "http", Host: "localhost:8081"})
+	httpsClient, _ := server.NewHttpsClientConnection(url.URL{Scheme: "https", Host: "localhost:8080"}, "./server.crt", logger)
 
 	Do(httpClient)
 	Do(httpsClient)
@@ -55,6 +56,7 @@ func main() {
 	//-addext "subjectAltName=DNS:localhost"
 
 	<-father.Done()
+	app.Stop()
 }
 
 func Do(httpsClient *server.HttpClientConnection) {
@@ -66,7 +68,10 @@ func Do(httpsClient *server.HttpClientConnection) {
 
 	requestBody := bytes.NewBuffer(data)
 
-	resp, err := httpsClient.ClientConnection.Post(httpsClient.GetBaseURL()+"/empty", "application/json", requestBody)
+	//u := url.URL{Host: httpsClient.GetBaseURL(), Path: "/empty"}
+	baseURL := httpsClient.GetBaseURL()
+	u := baseURL.ResolveReference(&url.URL{Path: "/empty"})
+	resp, err := httpsClient.ClientConnection.Post(u.String(), "application/json", requestBody)
 	if err != nil {
 		log.Fatalf("Failed to send POST request: %v", err)
 	}

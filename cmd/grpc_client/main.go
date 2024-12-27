@@ -62,6 +62,7 @@ func main() {
 	//-addext "subjectAltName=DNS:localhost"
 
 	<-father.Done()
+	app.Stop()
 }
 
 func DoWithTLS(grpcClient *server.GRPCClientConnection) {

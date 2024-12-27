@@ -29,10 +29,6 @@ func main() {
 		cancel()
 	}()
 	app := application.NewApp(logger)
-	//defer func() {
-	//	app.Stop()
-	//	logger.Info("app is stopped")
-	//}()
 
 	container := internal.NewContainer(logger)
 
