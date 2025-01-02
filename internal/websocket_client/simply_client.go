@@ -13,14 +13,19 @@ import (
 	"time"
 )
 
-func (h *Handlers) DoClientApp(
+func (h *Handlers) clientApp(
 	father context.Context,
 	dialer *websocket.Dialer,
 	u url.URL,
 	crt string,
 	logger *zap.Logger,
-) func() error {
-	webSocketClientConnection, shutdown, _ := server.NewWebSocketHttpsClientConnection(dialer, u, crt)
+) (func() error, chan error) {
+	var errChan = make(chan error, 1)
+	webSocketClientConnection, shutdown, err := server.NewWebSocketHttpsClientConnection(dialer, u, crt, logger)
+	if err != nil {
+		errChan <- err
+		return shutdown, errChan
+	}
 
 	webSocketClientConnection.Connection.SetPingHandler(func(appData string) error {
 		fmt.Println("Получен ping:", appData)
@@ -48,7 +53,7 @@ func (h *Handlers) DoClientApp(
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("Паника в handleUserInput", zap.Any("recover", r))
+				logger.Error("Паника в ReadLoop", zap.Any("recover", r))
 			}
 		}()
 		defer func() {
@@ -57,22 +62,26 @@ func (h *Handlers) DoClientApp(
 			logger.Info("Закрытие канала responses")
 			wg.Wait()
 			logger.Info("Ожидание завершения WritePump")
+			close(errChan)
+			logger.Info("Закрытие канала ошибок")
 		}()
 	ReadLoop:
 		for {
 			messageType, message, err := webSocketClientConnection.Connection.ReadMessage()
 			if err != nil {
 				// Проверяем, если ошибка закрытия соединения ожидаемая
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					logger.Info("Соединение WebSocket закрыто ожидаемо")
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					logger.Info("Соединение WebSocket закрыто со стороны сервера")
 				} else {
 					logger.Error("Ошибка при чтении сообщения:", zap.Error(err))
 				}
+				errChan <- err
 				break ReadLoop
 			}
 
 			if father.Err() != nil {
 				logger.Info("Закрытие соединения, завершение работы")
+				errChan <- father.Err()
 				break ReadLoop
 			}
 
@@ -88,7 +97,38 @@ func (h *Handlers) DoClientApp(
 	}()
 
 	logger.Info("Обработка соединения завершена")
-	return shutdown
+	return shutdown, errChan
+}
+
+func (h *Handlers) DoClientApp(
+	father context.Context,
+	dialer *websocket.Dialer,
+	u url.URL,
+	crt string,
+	logger *zap.Logger,
+) {
+	_, errChan := h.clientApp(father, dialer, u, crt, logger)
+	for {
+		select {
+		case <-father.Done():
+			logger.Info("Завершение работы клиента father")
+			return
+		case err, ok := <-errChan:
+			if !ok {
+				logger.Info("Ошибка при чтении из канала ошибок")
+				return
+			}
+			if err != nil {
+				time.Sleep(time.Second * 2)
+				logger.Error("Ошибка при запуске клиента:", zap.Error(err))
+				if father.Err() != nil {
+					logger.Info("Завершение работы клиента loop")
+					return
+				}
+				_, errChan = h.clientApp(father, dialer, u, crt, logger)
+			}
+		}
+	}
 }
 
 // это какой -то бред, такое ощущение что го не умеет нормально работать с stdin

@@ -21,6 +21,7 @@ func (h *Handlers) Ws(father context.Context) func(w http.ResponseWriter, r *htt
 		}()
 
 		logger := pkg.LoggerFromCtx(r.Context())
+		//handlerCtx := pkg.LoggerWithCtx(context.Background(), logger)
 		logger.Info("Попытка подключения к /ws")
 
 		conn, err := h.upgrader.Upgrade(w, r, nil)
@@ -85,6 +86,7 @@ func (h *Handlers) Ws(father context.Context) func(w http.ResponseWriter, r *htt
 				continue
 			}
 
+			//err = h.wsrouter.HandleMessage(handlerCtx, msg)
 			err = h.wsrouter.HandleMessage(r.Context(), msg)
 			if err != nil {
 				logger.Error("Ошибка при обработке сообщения", zap.Error(err))

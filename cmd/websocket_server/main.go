@@ -41,7 +41,7 @@ func main() {
 			"second": handlers.SecondHandler(),
 		})
 
-	simpleHttpServerShutdownFunction := server.CreateHttpServer(
+	httpServerShutdownFunction := server.CreateHttpServer(
 		logger,
 		handlerList(father, handlers),
 		":8081",
@@ -49,7 +49,7 @@ func main() {
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
 	)
-	app.RegisterShutdown("websocket_http_server", simpleHttpServerShutdownFunction, 1)
+	app.RegisterShutdown("websocket_http_server", httpServerShutdownFunction, 1)
 
 	//https://chromewebstore.google.com/detail/simple-websocket-client/pfdhoblngboilpfeibdedpjgfnlcodoo
 	//openssl req \

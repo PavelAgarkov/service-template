@@ -12,6 +12,7 @@ import (
 	"service-template/internal"
 	"service-template/internal/websocket_client"
 	"service-template/pkg"
+	"sync"
 	"syscall"
 )
 
@@ -27,7 +28,7 @@ func main() {
 
 	go func() {
 		<-sig
-		logger.Info("Signal received. Shutting down gRPC client...")
+		logger.Info("Signal received. Shutting down websocket client...")
 		cancel()
 	}()
 
@@ -42,14 +43,18 @@ func main() {
 	container := internal.NewContainer(logger)
 	webSocketClientHandler := websocket_client.NewHandlers(container)
 
-	s := webSocketClientHandler.DoClientApp(
-		father,
-		websocket.DefaultDialer,
-		url.URL{Scheme: "wss", Host: "localhost:8080", Path: "/ws"},
-		"./server.crt",
-		logger,
-	)
-	app.RegisterShutdown("ws_client", func() { s() }, 1)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		webSocketClientHandler.DoClientApp(
+			father,
+			websocket.DefaultDialer,
+			url.URL{Scheme: "wss", Host: "localhost:8080", Path: "/ws"},
+			"./server.crt",
+			logger,
+		)
+	}()
 
 	//openssl req \
 	//-x509 \
@@ -63,6 +68,7 @@ func main() {
 
 	logger.Info("Ожидание завершения работы")
 	<-father.Done()
+	wg.Wait()
 	app.Stop()
 	logger.Info("Родительский контекст завершён")
 }
