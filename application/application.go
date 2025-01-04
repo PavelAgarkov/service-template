@@ -83,7 +83,6 @@ func (a *App) GetAllRegisteredShutdown() *LinkedList {
 // shutdownAll shuts down all registered shutdown functions.
 func (a *App) shutdownAllAndDeleteAllCanceled() {
 	a.shutdownRWM.Lock()
-	//l := pkg.GetLogger()
 	defer a.shutdownRWM.Unlock()
 	for a.shutdown.Node != nil {
 		a.shutdown.Node.shutdownFunc()
@@ -94,7 +93,6 @@ func (a *App) shutdownAllAndDeleteAllCanceled() {
 
 // Stop stops the application.
 func (a *App) Stop() {
-	//l := pkg.GetLogger()
 	a.logger.Info("Stop()")
 	a.shutdownAllAndDeleteAllCanceled()
 }

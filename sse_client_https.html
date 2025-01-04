@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SSE Named Events Example</title>
+</head>
+<body>
+<h1>Example: Named Events in SSE</h1>
+<script>
+    // Создаём EventSource
+    const source = new EventSource("https://localhost:8080/events");
+
+    // Обработчик для события 'news'
+    source.addEventListener("news", function(e) {
+        console.log("Получено событие 'news':", e.data, e.lastEventId);
+    });
+
+    // Обработчик для события 'alert'
+    source.addEventListener("alert", function(e) {
+        console.log("Получено событие 'alert':", e.data, e.lastEventId);
+    });
+
+    // Обработчик по умолчанию (если не указано 'event: <имя>')
+    source.onmessage = function(e) {
+        console.log("Default message event:", e.data);
+    };
+
+    // Обработка ошибок (например, если сервер недоступен)
+    source.onerror = function(err) {
+        console.error("Ошибка SSE:", err);
+    };
+</script>
+</body>
+</html>

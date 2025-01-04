@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
+	"go.uber.org/zap"
 	"log"
 	"net/url"
 	"os"
@@ -42,9 +41,6 @@ func main() {
 	httpClient := server.NewHttpClientConnection(url.URL{Scheme: "http", Host: "localhost:8081"}, 0)
 	httpsClient, _ := server.NewHttpsClientConnection(url.URL{Scheme: "https", Host: "localhost:8080"}, "./server.crt", logger, 0)
 
-	Do(httpClient)
-	Do(httpsClient)
-
 	//openssl req \
 	//-x509 \
 	//-nodes \
@@ -54,34 +50,20 @@ func main() {
 	//-days 365 \
 	//-subj "/CN=localhost" \
 	//-addext "subjectAltName=DNS:localhost"
+	go listen(father, httpsClient, logger)
+	go listen(father, httpClient, logger)
 
 	<-father.Done()
 	app.Stop()
 }
 
-func Do(httpsClient *server.HttpClientConnection) {
-	data := []byte(`{
-  "name": "John1",
-  "age": 30,
-  "email": "a@mail.ru"
-}`)
-
-	requestBody := bytes.NewBuffer(data)
-
-	//u := url.URL{Host: httpsClient.GetBaseURL(), Path: "/empty"}
-	baseURL := httpsClient.GetBaseURL()
-	u := baseURL.ResolveReference(&url.URL{Path: "/empty"})
-	resp, err := httpsClient.ClientConnection.Post(u.String(), "application/json", requestBody)
+func listen(father context.Context, httpsClient *server.HttpClientConnection, logger *zap.Logger) {
+	err := httpsClient.StartListen(father, func(message string) {
+		// Обработка поступившего сообщения
+		logger.Info("Got SSE message:", zap.String("message", message))
+	}, logger)
 	if err != nil {
-		log.Fatalf("Failed to send POST request: %v", err)
+		logger.Error("SSE listen error", zap.Error(err))
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
-	}
-
-	fmt.Println("Status:", resp.Status)
-	fmt.Println("Body:", string(body))
+	logger.Info("sse was stopped")
 }

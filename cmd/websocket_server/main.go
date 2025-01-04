@@ -85,7 +85,7 @@ func handlerList(father context.Context, handlers *websocket_handler.Handlers) f
 
 		simple.Router.PathPrefix("/").Handler(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				http.ServeFile(w, r, "index.html")
+				http.ServeFile(w, r, "ws_client.html")
 			},
 			))
 	}
