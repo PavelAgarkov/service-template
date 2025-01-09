@@ -54,10 +54,6 @@ func main() {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	//defer func() {
-	//	app.Stop()
-	//	logger.Info("app is stopped")
-	//}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(
 		logger,
@@ -72,10 +68,24 @@ func main() {
 
 	pkg.NewMigrations(postgres.GetDB().DB, logger).Migrate("./migrations", "goose_db_version")
 
+	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
+		"http://localhost:2379",
+		"admin",
+		"adminpassword",
+		logger,
+	)
+	app.RegisterShutdown(pkg.EtcdClient, etcdCloser, 99)
+
+	err := etcdClientService.Register(father, logger)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to register service: %v", err))
+	}
+
 	container := internal.NewContainer(
 		logger,
 		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
+		&internal.ServiceInit{Name: pkg.EtcdClient, Service: etcdClientService},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
 		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService)
