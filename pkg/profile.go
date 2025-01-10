@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -63,4 +64,10 @@ func SaveProfiles() {
 func GetGoroutines() {
 	p := pprof.Lookup("goroutine")
 	p.WriteTo(os.Stdout, 1)
+}
+
+func AllGoroutines() {
+	buf := make([]byte, 1<<20)
+	n := runtime.Stack(buf, false) // true означает "все горутины", false — только текущую
+	fmt.Printf("%s", buf[:n])
 }

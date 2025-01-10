@@ -21,6 +21,7 @@ type EtcdClientService struct {
 	leaseMu   sync.Mutex
 	lease     *clientv3.LeaseGrantResponse
 	logger    *zap.Logger
+	register  *sync.WaitGroup
 	serviceId string
 	key       string
 	host      string
@@ -43,7 +44,7 @@ func NewEtcdClientService(ctx context.Context, address string, user string, pass
 		log.Fatalf("Не удалось подключиться к ETCD: %v", err)
 	}
 
-	etcdService := &EtcdClientService{Client: client, logger: logger}
+	etcdService := &EtcdClientService{Client: client, logger: logger, register: &sync.WaitGroup{}}
 	lease, err := etcdService.Client.Grant(ctx, 10)
 	if err != nil {
 		log.Fatalf("Не удалось создать lease: %v", err)
@@ -82,17 +83,20 @@ func (etcdService *EtcdClientService) Close(ctx context.Context) func() {
 			etcdService.logger.Error("Не удалось закрыть соединение с etcd")
 		}
 		etcdService.logger.Info("Соединение с etcd закрыто")
+		etcdService.register.Wait()
 	}
 }
 
-func (etcdService *EtcdClientService) Register(ctx context.Context, logger *zap.Logger, wg *sync.WaitGroup) error {
-	wg.Add(1)
+func (etcdService *EtcdClientService) Register(ctx context.Context, logger *zap.Logger) error {
+	etcdService.register.Add(1)
 	go func() {
-		defer wg.Done()
+		defer etcdService.register.Done()
 		defer logger.Info("Register goroutine exited") // Для отладки, чтобы видеть, что горутина ушла
-		//defer func() {
-		//	logger.Info("Register goroutine exited")
-		//}()
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("Recovered from panic", zap.Any("panic", r))
+			}
+		}()
 
 		for {
 			select {
@@ -134,7 +138,7 @@ func (etcdService *EtcdClientService) Register(ctx context.Context, logger *zap.
 	return nil
 }
 
-var closedErr = errors.New("closerd")
+var closedErr = errors.New("closer error")
 var contextClosedErr = errors.New("context closed")
 
 func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientService, error) {

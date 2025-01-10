@@ -17,7 +17,6 @@ import (
 	"service-template/internal/service"
 	"service-template/pkg"
 	"service-template/server"
-	"sync"
 	"syscall"
 )
 
@@ -69,7 +68,7 @@ func main() {
 
 	pkg.NewMigrations(postgres.GetDB().DB, logger).Migrate("./migrations", "goose_db_version")
 
-	etcdClientService, closer := pkg.NewEtcdClientService(
+	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
 		father,
 		"http://localhost:2379",
 		"admin",
@@ -77,20 +76,12 @@ func main() {
 		logger,
 	)
 
-	wg := sync.WaitGroup{}
-
 	app.RegisterShutdown(pkg.EtcdClient, func() {
-		logger.Info("closing etcd client")
-		wg.Wait()
-		//buf := make([]byte, 1<<20)
-		//n := runtime.Stack(buf, false) // true означает "все горутины", false — только текущую
-		//fmt.Printf("%s", buf[:n])
-		logger.Info("all goroutines exited")
-		closer()
+		etcdCloser()
 		logger.Info("etcd client closed")
 	}, 99)
 
-	err := etcdClientService.Register(father, logger, &wg)
+	err := etcdClientService.Register(father, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to register service: %v", err))
 	}
