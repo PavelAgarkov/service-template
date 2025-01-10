@@ -102,6 +102,7 @@ services:
     entrypoint: [ "/bin/sh", "/etcd-entrypoint.sh" ]
     networks:
       - service-template
+    restart: unless-stopped
 
 volumes:
   rabbitmq_data:
