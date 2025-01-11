@@ -113,7 +113,7 @@ func (etcdService *EtcdClientService) Register(ctx context.Context, logger *zap.
 						logger.Info("KeepAlive channel closed, reconnecting...")
 						continue
 					}
-					if errors.Is(err, contextClosedErr) {
+					if errors.Is(err, contextCancelledErr) {
 						etcdService.logger.Info("context error canceled 2")
 						return
 					}
@@ -139,7 +139,7 @@ func (etcdService *EtcdClientService) Register(ctx context.Context, logger *zap.
 }
 
 var closedErr = errors.New("closer error")
-var contextClosedErr = errors.New("context closed")
+var contextCancelledErr = errors.New("context canceled")
 
 func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientService, error) {
 	log.Println("KeepAlive канал закрыт")
@@ -150,7 +150,7 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 		select {
 		case <-ctx.Done():
 			etcdService.logger.Info("context error canceled 1")
-			return nil, contextClosedErr
+			return nil, contextCancelledErr
 		default:
 			// продолжаем
 		}
@@ -170,7 +170,7 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 			select {
 			case <-ctx.Done():
 				etcdService.logger.Info("context error canceled 1")
-				return nil, contextClosedErr
+				return nil, contextCancelledErr
 			case <-time.After(1 * time.Second):
 			}
 			continue
@@ -219,13 +219,13 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 				if !ok {
 					log.Println("KeepAlive канал закрыт")
 					log.Println("KeepAlive канал закрыт, попытка переподключения...")
-					return newService, closedErr
+					return newService, contextCancelledErr
 				}
 				log.Printf("Получено KeepAlive сообщение: TTL=%d\n", ka.TTL)
 
 			case <-ctx.Done():
-				log.Println("context done")
-				return newService, ctx.Err()
+				newService.logger.Info("context done")
+				return newService, contextCancelledErr
 			}
 		}
 	}
