@@ -79,7 +79,7 @@ func (lb *LoadBalancer) Run(ctx context.Context, watchPrefix string, g *run.Grou
 		})
 }
 
-func (lb *LoadBalancer) NextBackend() *Backend {
+func (lb *LoadBalancer) RoundRobbinNextBackend() *Backend {
 	lb.Mutex.Lock()
 	defer lb.Mutex.Unlock()
 	if len(lb.Backends) == 0 {
@@ -103,7 +103,7 @@ func (lb *LoadBalancer) NextBackend() *Backend {
 
 // ServeHTTP реализует интерфейс http.Handler для балансировщика нагрузки
 func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	backend := lb.NextBackend()
+	backend := lb.RoundRobbinNextBackend()
 	if backend != nil {
 		lb.Logger.Info("Направление запроса", zap.String("backend", backend.URL.String()))
 		backend.ReverseProxy.ServeHTTP(w, r)

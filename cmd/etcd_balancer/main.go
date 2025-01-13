@@ -70,8 +70,19 @@ func main() {
 	)
 
 	loadBalancer := pkg.NewLoadBalancer(logger, etcdClientService)
+
 	var g run.Group
 	loadBalancer.Run(father, "/services/my-service/", &g)
+	go func() {
+		// если запустить не в горутине - будет блокировка
+		// т.к. run.Group().Run() блокирующий метод
+		// поэтому нужно для каждой группы контроля запускать с помощью отдельного инстанса run.Group
+		e := g.Run()
+		if e != nil {
+			logger.Error("Ошибка при запуске controller", zap.Error(e))
+		}
+	}()
+
 	//app.RegisterShutdown("load_balancer", closeLb, 1)
 
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
@@ -85,9 +96,5 @@ func main() {
 	)
 	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttp, 1)
 
-	e := g.Run()
-	if e != nil {
-		logger.Error("Ошибка при запуске controller", zap.Error(e))
-	}
 	<-father.Done()
 }
