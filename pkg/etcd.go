@@ -23,8 +23,8 @@ type EtcdClientService struct {
 	logger    *zap.Logger
 	register  *sync.WaitGroup
 	serviceId string
-	key       string
 	host      string
+	Key       string
 }
 
 func (etcdService *EtcdClientService) GetLease() *clientv3.LeaseGrantResponse {
@@ -33,10 +33,17 @@ func (etcdService *EtcdClientService) GetLease() *clientv3.LeaseGrantResponse {
 	return etcdService.lease
 }
 
-func NewEtcdClientService(ctx context.Context, address string, user string, pass string, logger *zap.Logger) (*EtcdClientService, func()) {
+func NewEtcdClientService(
+	ctx context.Context,
+	address string,
+	user string,
+	pass string,
+	port string,
+	logger *zap.Logger,
+) (*EtcdClientService, func()) {
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{address},
-		DialTimeout: 30 * time.Second,
+		DialTimeout: 5 * time.Second,
 		Username:    user,
 		Password:    pass,
 	})
@@ -53,8 +60,8 @@ func NewEtcdClientService(ctx context.Context, address string, user string, pass
 	serviceID := strconv.Itoa(rand.Intn(1000000))
 
 	etcdService.serviceId = serviceID
-	etcdService.key = fmt.Sprintf("/services/%s/%s", "my-service", serviceID)
-	etcdService.host = fmt.Sprintf("http://%s:8080", etcdService.GetLocalIP())
+	etcdService.Key = fmt.Sprintf("/services/%s/%s", "my-service", serviceID)
+	etcdService.host = fmt.Sprintf("http://%s%s", etcdService.GetLocalIP(), port)
 	etcdService.lease = lease
 
 	return etcdService, etcdService.Close(ctx)
@@ -62,11 +69,11 @@ func NewEtcdClientService(ctx context.Context, address string, user string, pass
 
 func (etcdService *EtcdClientService) Close(ctx context.Context) func() {
 	return func() {
-		_, err := etcdService.Client.Delete(ctx, etcdService.key)
+		_, err := etcdService.Client.Delete(ctx, etcdService.Key)
 		if err != nil {
-			etcdService.logger.Error(fmt.Sprintf("Не удалось удалить ключ %s: %v", etcdService.key, err))
+			etcdService.logger.Error(fmt.Sprintf("Не удалось удалить ключ %s: %v", etcdService.Key, err))
 		} else {
-			etcdService.logger.Info(fmt.Sprintf("Ключ %s удалён из etcd", etcdService.key))
+			etcdService.logger.Info(fmt.Sprintf("Ключ %s удалён из etcd", etcdService.Key))
 		}
 
 		if etcdService.lease != nil {
@@ -190,11 +197,11 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 			lease:     lease,
 			logger:    etcdService.logger,
 			serviceId: etcdService.serviceId,
-			key:       etcdService.key,
+			Key:       etcdService.Key,
 			host:      etcdService.host,
 		}
 
-		_, err = newClient.Put(ctx, newService.key, newService.host, clientv3.WithLease(lease.ID))
+		_, err = newClient.Put(ctx, newService.Key, newService.host, clientv3.WithLease(lease.ID))
 		if err != nil {
 			log.Printf("Ошибка при повторной регистрации ключа: %v\n", err)
 			newClient.Close()

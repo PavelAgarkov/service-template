@@ -48,6 +48,8 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	defer app.Stop()
+
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
 		if err != nil {
@@ -68,11 +70,14 @@ func main() {
 
 	pkg.NewMigrations(postgres.GetDB().DB, logger).Migrate("./migrations", "goose_db_version")
 
+	port := ":" + os.Getenv("HTTP_PORT")
+
 	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
 		father,
 		"http://localhost:2379",
 		"admin",
 		"adminpassword",
+		port,
 		logger,
 	)
 
@@ -99,8 +104,9 @@ func main() {
 
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
+		nil,
 		handlerList(handlers),
-		":8081",
+		port,
 		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
@@ -116,26 +122,33 @@ func main() {
 	//-days 365 \
 	//-subj "/CN=localhost" \
 	//-addext "subjectAltName=DNS:localhost"
-	simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
-		logger,
-		handlerList(handlers),
-		":8080",        // Порт сервера
-		"./server.crt", // Путь к сертификату
-		"./server.key", // Путь к ключу
-		server.LoggerContextMiddleware(logger),
-		server.RecoverMiddleware,
-		server.LoggingMiddleware,
-	)
-	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
+	//simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
+	//	logger,
+	//	handlerList(handlers),
+	//	":8080",        // Порт сервера
+	//	"./server.crt", // Путь к сертификату
+	//	"./server.key", // Путь к ключу
+	//	server.LoggerContextMiddleware(logger),
+	//	server.RecoverMiddleware,
+	//	server.LoggingMiddleware,
+	//)
+	//app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
 
 	<-father.Done()
-	app.Stop()
 }
 
 func handlerList(handlers *http_handler.Handlers) func(simple *server.HTTPServer) {
 	return func(simple *server.HTTPServer) {
 		// http://localhost:3000/swagger/index.html
 		simple.Router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+
+		simple.Router.Handle("/health", http.HandlerFunc(
+			func(writer http.ResponseWriter, request *http.Request) {
+				writer.WriteHeader(http.StatusOK)
+				log.Println("health check")
+				return
+			})).Methods("GET")
+
 		simple.Router.Handle("/empty", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")
 		//router.HandleFunc("/user/{id}/posts/{postId}", GetPostHandler).Methods("GET")
 		//router.HandleFunc("/user/{id:[0-9]+}/posts/{postId:[0-9]+}", GetPostHandler).Methods("POST")
