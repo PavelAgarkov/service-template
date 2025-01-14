@@ -188,12 +188,20 @@ func (simple *HTTPServer) shutdown(server *http.Server) func() {
 	}
 }
 
-func (simple *HTTPServer) RunHTTPSServer(certFile, keyFile string, mwf ...mux.MiddlewareFunc) func() {
+func (simple *HTTPServer) RunHTTPSServer(balancer http.Handler, certFile, keyFile string, mwf ...mux.MiddlewareFunc) func() {
 	simple.Router.Use(mwf...)
 
-	server := &http.Server{
-		Addr:    simple.port,
-		Handler: simple.Router,
+	var server *http.Server
+	if balancer != nil {
+		server = &http.Server{
+			Addr:    simple.port,
+			Handler: balancer,
+		}
+	} else {
+		server = &http.Server{
+			Addr:    simple.port,
+			Handler: simple.Router,
+		}
 	}
 
 	go func() {
@@ -207,10 +215,15 @@ func (simple *HTTPServer) RunHTTPSServer(certFile, keyFile string, mwf ...mux.Mi
 	return simple.shutdown(server)
 }
 
-func CreateHttpsServer(logger *zap.Logger, fn func(simple *HTTPServer), port, certFile, keyFile string, mwf ...mux.MiddlewareFunc) func() {
+func CreateHttpsServer(logger *zap.Logger, loadBalancer http.Handler, fn func(simple *HTTPServer), port, certFile, keyFile string, mwf ...mux.MiddlewareFunc) func() {
 	serverHttp := newSimpleHTTPServer(logger, port)
-	serverHttp.ToConfigureHandlers(fn)
-	simpleHttpServerShutdownFunction := serverHttp.RunHTTPSServer(certFile, keyFile, mwf...)
+	var simpleHttpServerShutdownFunction func()
+	if loadBalancer != nil {
+		simpleHttpServerShutdownFunction = serverHttp.RunHTTPSServer(loadBalancer, certFile, keyFile, mwf...)
+	} else {
+		serverHttp.ToConfigureHandlers(fn)
+		simpleHttpServerShutdownFunction = serverHttp.RunHTTPSServer(nil, certFile, keyFile, mwf...)
+	}
 	return simpleHttpServerShutdownFunction
 }
 

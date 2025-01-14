@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/oklog/run"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"service-template/application"
 	"service-template/internal"
 	"service-template/pkg"
 	"service-template/server"
+	"strconv"
 	"syscall"
 )
 
@@ -44,12 +47,19 @@ func main() {
 		}
 	}, 101)
 
+	port := ":" + os.Getenv("HTTP_PORT")
+
+	serviceID := strconv.Itoa(rand.Intn(1000000))
+	key := fmt.Sprintf("/loadbalancer/services/%s/%s", "my-service", serviceID)
 	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
 		father,
 		"http://localhost:2379",
 		"admin",
 		"adminpassword",
-		":8081",
+		port,
+		"http",
+		key,
+		serviceID,
 		logger,
 	)
 
@@ -62,6 +72,20 @@ func main() {
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to register service: %v", err))
 	}
+
+	session, err := concurrency.NewSession(etcdClientService.Client, concurrency.WithTTL(5))
+	if err != nil {
+		logger.Fatal("Не удалось создать сессию etcd:", zap.Error(err))
+	}
+	app.RegisterShutdown("etcd_session", func() {
+		session.Close()
+		logger.Info("Сессия etcd закрыта")
+	}, 98)
+
+	election := concurrency.NewElection(session, "/my-service/"+"leader-election")
+
+	stopElection := pkg.DoElection(logger, father, session, election)
+	app.RegisterShutdown("election", stopElection, 97)
 
 	_ = internal.NewContainer(
 		logger,
@@ -89,7 +113,7 @@ func main() {
 		logger,
 		loadBalancer,
 		nil,
-		":8081",
+		port,
 		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,

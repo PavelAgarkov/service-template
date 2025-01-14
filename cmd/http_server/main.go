@@ -5,6 +5,7 @@ import (
 	"fmt"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	"service-template/internal/service"
 	"service-template/pkg"
 	"service-template/server"
+	"strconv"
 	"syscall"
 )
 
@@ -72,12 +74,17 @@ func main() {
 
 	port := ":" + os.Getenv("HTTP_PORT")
 
+	serviceID := strconv.Itoa(rand.Intn(1000000))
+	key := fmt.Sprintf("/services/%s/%s", "my-service", serviceID)
 	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
 		father,
 		"http://localhost:2379",
 		"admin",
 		"adminpassword",
 		port,
+		"http",
+		key,
+		serviceID,
 		logger,
 	)
 

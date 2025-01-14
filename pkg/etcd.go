@@ -7,9 +7,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"log"
-	"math/rand"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -39,6 +37,9 @@ func NewEtcdClientService(
 	user string,
 	pass string,
 	port string,
+	protocolPrefix string,
+	key string,
+	serviceId string,
 	logger *zap.Logger,
 ) (*EtcdClientService, func()) {
 	client, err := clientv3.New(clientv3.Config{
@@ -54,14 +55,12 @@ func NewEtcdClientService(
 	etcdService := &EtcdClientService{Client: client, logger: logger, register: &sync.WaitGroup{}}
 	lease, err := etcdService.Client.Grant(ctx, 10)
 	if err != nil {
-		log.Fatalf("Не удалось создать lease: %v", err)
+		logger.Fatal("Не удалось создать lease: %v", zap.Error(err))
 	}
 
-	serviceID := strconv.Itoa(rand.Intn(1000000))
-
-	etcdService.serviceId = serviceID
-	etcdService.Key = fmt.Sprintf("/services/%s/%s", "my-service", serviceID)
-	etcdService.host = fmt.Sprintf("http://%s%s", etcdService.GetLocalIP(), port)
+	etcdService.serviceId = serviceId
+	etcdService.Key = key
+	etcdService.host = fmt.Sprintf("%s://%s%s", protocolPrefix, etcdService.GetLocalIP(), port)
 	etcdService.lease = lease
 
 	return etcdService, etcdService.Close(ctx)
@@ -69,13 +68,14 @@ func NewEtcdClientService(
 
 func (etcdService *EtcdClientService) Close(ctx context.Context) func() {
 	return func() {
-		_, err := etcdService.Client.Delete(ctx, etcdService.Key)
-		if err != nil {
-			etcdService.logger.Error(fmt.Sprintf("Не удалось удалить ключ %s: %v", etcdService.Key, err))
-		} else {
-			etcdService.logger.Info(fmt.Sprintf("Ключ %s удалён из etcd", etcdService.Key))
-		}
+		//_, err := etcdService.Client.Delete(ctx, etcdService.Key)
+		//if err != nil {
+		//	etcdService.logger.Error(fmt.Sprintf("Не удалось удалить ключ %s: %v", etcdService.Key, err))
+		//} else {
+		//	etcdService.logger.Info(fmt.Sprintf("Ключ %s удалён из etcd", etcdService.Key))
+		//}
 
+		var err error
 		if etcdService.lease != nil {
 			_, err = etcdService.Client.Revoke(ctx, etcdService.lease.ID)
 			if err != nil {

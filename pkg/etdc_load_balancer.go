@@ -4,10 +4,13 @@ import (
 	"context"
 	"github.com/oklog/run"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 )
@@ -67,7 +70,6 @@ func (lb *LoadBalancer) Run(ctx context.Context, watchPrefix string, g *run.Grou
 		})
 
 	stopHealthcheck := make(chan struct{})
-
 	g.Add(
 		func() error {
 			lb.HealthCheck(ctx, 10*time.Second, stopHealthcheck)
@@ -264,4 +266,60 @@ func isBackendAlive(u *url.URL) bool {
 	defer resp.Body.Close()
 
 	return resp.StatusCode == http.StatusOK
+}
+
+func DoElection(logger *zap.Logger, father context.Context, session *concurrency.Session, election *concurrency.Election) func() {
+	stopElection := make(chan struct{})
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("Восстановление после паники", zap.Any("panic", r))
+			}
+		}()
+		for {
+			select {
+			case <-stopElection:
+				logger.Info("Остановка избирательной горутины")
+				if err := election.Resign(father); err != nil {
+					logger.Error("Ошибка освобождения лидерства при остановке выборов", zap.Error(err))
+				} else {
+					logger.Info("Освободил лидерство")
+				}
+				return
+			default:
+				instanceKey := "instance-" + getInstanceID()
+				log.Println("Пытаюсь стать лидером...", instanceKey)
+				// Попытка стать лидером
+				err := election.Campaign(father, instanceKey)
+				if err != nil {
+					log.Println("Ошибка кампании на лидерство:", err)
+				} else {
+					log.Println("Я лидер! Выполняю лидерские задачи...")
+				}
+
+				<-session.Done()
+				// Освобождение лидерства
+				if err := election.Resign(father); err != nil {
+					logger.Error("Ошибка освобождения лидерства", zap.Error(err))
+				} else {
+					logger.Info("Освободил лидерство")
+				}
+
+				// Если сессия завершена, перестаём быть лидером
+				log.Println("Лидерство потеряно. Перезапуск кампании...")
+			}
+		}
+	}()
+
+	return func() {
+		close(stopElection)
+	}
+}
+
+func getInstanceID() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "unknown"
+	}
+	return hostname
 }
