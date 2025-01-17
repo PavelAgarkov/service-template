@@ -34,6 +34,7 @@ func main() {
 
 	httpServerShutdownFunction := server.CreateHttpServer(
 		logger,
+		nil,
 		handlerList(father, "sse_client_http.html"),
 		":8081",
 		server.LoggerContextMiddleware(logger),
@@ -53,6 +54,7 @@ func main() {
 	//-addext "subjectAltName=DNS:localhost"
 	simpleHttpsServerShutdownFunction := server.CreateHttpsServer(
 		logger,
+		nil,
 		handlerList(father, "sse_client_https.html"),
 		":8080",        // Порт сервера
 		"./server.crt", // Путь к сертификату

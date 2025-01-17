@@ -5,6 +5,7 @@ import (
 	"fmt"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	"service-template/internal/service"
 	"service-template/pkg"
 	"service-template/server"
+	"strconv"
 	"syscall"
 )
 
@@ -48,16 +50,14 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	defer app.Stop()
+
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
 		if err != nil {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	//defer func() {
-	//	app.Stop()
-	//	logger.Info("app is stopped")
-	//}()
 
 	postgres, postgresShutdown := pkg.NewPostgres(
 		logger,
@@ -72,10 +72,37 @@ func main() {
 
 	pkg.NewMigrations(postgres.GetDB().DB, logger).Migrate("./migrations", "goose_db_version")
 
+	port := ":" + os.Getenv("HTTP_PORT")
+
+	serviceID := strconv.Itoa(rand.Intn(1000000))
+	key := fmt.Sprintf("/services/%s/%s", "my-service", serviceID)
+	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
+		father,
+		"http://localhost:2379",
+		"admin",
+		"adminpassword",
+		port,
+		"http",
+		key,
+		serviceID,
+		logger,
+	)
+
+	app.RegisterShutdown(pkg.EtcdClient, func() {
+		etcdCloser()
+		logger.Info("etcd client closed")
+	}, 99)
+
+	err := etcdClientService.Register(father, logger)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to register service: %v", err))
+	}
+
 	container := internal.NewContainer(
 		logger,
 		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
 		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
+		&internal.ServiceInit{Name: pkg.EtcdClient, Service: etcdClientService},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
 		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService)
@@ -84,8 +111,9 @@ func main() {
 
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
+		nil,
 		handlerList(handlers),
-		":8081",
+		port,
 		server.LoggerContextMiddleware(logger),
 		server.RecoverMiddleware,
 		server.LoggingMiddleware,
@@ -101,26 +129,33 @@ func main() {
 	//-days 365 \
 	//-subj "/CN=localhost" \
 	//-addext "subjectAltName=DNS:localhost"
-	simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
-		logger,
-		handlerList(handlers),
-		":8080",        // Порт сервера
-		"./server.crt", // Путь к сертификату
-		"./server.key", // Путь к ключу
-		server.LoggerContextMiddleware(logger),
-		server.RecoverMiddleware,
-		server.LoggingMiddleware,
-	)
-	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
+	//simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
+	//	logger,
+	//	handlerList(handlers),
+	//	":8080",        // Порт сервера
+	//	"./server.crt", // Путь к сертификату
+	//	"./server.key", // Путь к ключу
+	//	server.LoggerContextMiddleware(logger),
+	//	server.RecoverMiddleware,
+	//	server.LoggingMiddleware,
+	//)
+	//app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
 
 	<-father.Done()
-	app.Stop()
 }
 
 func handlerList(handlers *http_handler.Handlers) func(simple *server.HTTPServer) {
 	return func(simple *server.HTTPServer) {
 		// http://localhost:3000/swagger/index.html
 		simple.Router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+
+		simple.Router.Handle("/health", http.HandlerFunc(
+			func(writer http.ResponseWriter, request *http.Request) {
+				writer.WriteHeader(http.StatusOK)
+				log.Println("health check")
+				return
+			})).Methods("GET")
+
 		simple.Router.Handle("/empty", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")
 		//router.HandleFunc("/user/{id}/posts/{postId}", GetPostHandler).Methods("GET")
 		//router.HandleFunc("/user/{id:[0-9]+}/posts/{postId:[0-9]+}", GetPostHandler).Methods("POST")

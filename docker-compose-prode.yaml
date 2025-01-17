@@ -80,12 +80,36 @@ services:
     networks:
       - service-template
     restart: unless-stopped
+    
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.0
+    container_name: etcd
+    environment:
+      - ETCD_ENABLE_V2=false
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER=default=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-1
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd-data:/etcd-data
+      - ./etcd-entrypoint.sh:/etcd-entrypoint.sh
+    entrypoint: [ "/bin/sh", "/etcd-entrypoint.sh" ]
+    networks:
+      - service-template
+    restart: unless-stopped
 
 volumes:
   rabbitmq_data:
   grafana_data:
   habrdb-data:
   redis_data:
+  etcd-data:
 
 networks:
   service-template:
