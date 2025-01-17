@@ -292,9 +292,9 @@ func DoElection(logger *zap.Logger, father context.Context, session *concurrency
 				// Попытка стать лидером
 				err := election.Campaign(father, instanceKey)
 				if err != nil {
-					log.Println("Ошибка кампании на лидерство:", err)
+					logger.Error("Ошибка кампании на лидерство:", zap.Error(err))
 				} else {
-					log.Println("Я лидер! Выполняю лидерские задачи...")
+					logger.Info("Я лидер! Выполняю лидерские задачи...")
 				}
 
 				<-session.Done()
@@ -306,7 +306,7 @@ func DoElection(logger *zap.Logger, father context.Context, session *concurrency
 				}
 
 				// Если сессия завершена, перестаём быть лидером
-				log.Println("Лидерство потеряно. Перезапуск кампании...")
+				logger.Info("Лидерство потеряно. Перезапуск кампании...")
 			}
 		}
 	}()
