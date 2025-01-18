@@ -5,7 +5,6 @@ import (
 	"fmt"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,7 +17,6 @@ import (
 	"service-template/internal/service"
 	"service-template/pkg"
 	"service-template/server"
-	"strconv"
 	"syscall"
 )
 
@@ -32,6 +30,7 @@ import (
 // @BasePath /
 func main() {
 	logger := pkg.NewLogger("simple_http_server", "logs/app.log")
+
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
@@ -55,9 +54,10 @@ func main() {
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
 		if err != nil {
-			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
+			logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
+	defer app.RegisterRecovers(logger, sig)()
 
 	postgres, postgresShutdown := pkg.NewPostgres(
 		logger,
@@ -74,8 +74,8 @@ func main() {
 
 	port := ":" + os.Getenv("HTTP_PORT")
 
-	serviceID := strconv.Itoa(rand.Intn(1000000))
-	key := fmt.Sprintf("/services/%s/%s", "my-service", serviceID)
+	serviceID := pkg.NewServiceId()
+	serviceKey := pkg.NewServiceKey(serviceID, "my-service")
 	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
 		father,
 		"http://localhost:2379",
@@ -83,7 +83,7 @@ func main() {
 		"adminpassword",
 		port,
 		"http",
-		key,
+		serviceKey,
 		serviceID,
 		logger,
 	)

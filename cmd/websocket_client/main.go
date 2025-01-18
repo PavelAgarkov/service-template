@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/websocket"
-	"log"
 	"net/url"
 	"os"
 	"os/signal"
@@ -33,12 +32,15 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	defer app.Stop()
+
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
 		if err != nil {
-			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
+			logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
+	defer app.RegisterRecovers(logger, sig)()
 
 	container := internal.NewContainer(logger)
 	webSocketClientHandler := websocket_client.NewHandlers(container)
@@ -69,6 +71,5 @@ func main() {
 	logger.Info("Ожидание завершения работы")
 	<-father.Done()
 	wg.Wait()
-	app.Stop()
 	logger.Info("Родительский контекст завершён")
 }

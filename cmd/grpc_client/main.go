@@ -31,12 +31,15 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	defer app.Stop()
+
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
 		if err != nil {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
+	defer app.RegisterRecovers(logger, sig)()
 
 	grpcsClient, shutdown, _ := server.NewGRPCSClientConnection(
 		"localhost:50052",
@@ -62,7 +65,6 @@ func main() {
 	//-addext "subjectAltName=DNS:localhost"
 
 	<-father.Done()
-	app.Stop()
 }
 
 func DoWithTLS(grpcClient *server.GRPCClientConnection) {

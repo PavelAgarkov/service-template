@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -29,6 +30,15 @@ func main() {
 		cancel()
 	}()
 	app := application.NewApp(logger)
+	defer app.Stop()
+
+	app.RegisterShutdown("logger", func() {
+		err := logger.Sync()
+		if err != nil {
+			logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
+		}
+	}, 101)
+	defer app.RegisterRecovers(logger, sig)()
 
 	container := internal.NewContainer(logger)
 
@@ -75,9 +85,7 @@ func main() {
 	)
 
 	app.RegisterShutdown("websocket_https_server", simpleHttpsServerShutdownFunction, 1)
-
 	<-father.Done()
-	app.Stop()
 	logger.Info("app is stopped")
 }
 

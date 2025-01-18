@@ -31,6 +31,15 @@ func main() {
 		cancel()
 	}()
 	app := application.NewApp(logger)
+	defer app.Stop()
+
+	app.RegisterShutdown("logger", func() {
+		err := logger.Sync()
+		if err != nil {
+			logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
+		}
+	}, 101)
+	defer app.RegisterRecovers(logger, sig)()
 
 	httpServerShutdownFunction := server.CreateHttpServer(
 		logger,
@@ -67,7 +76,6 @@ func main() {
 	app.RegisterShutdown("websocket_https_server", simpleHttpsServerShutdownFunction, 1)
 
 	<-father.Done()
-	app.Stop()
 	logger.Info("app is stopped")
 }
 

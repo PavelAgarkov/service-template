@@ -7,7 +7,9 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"log"
+	"math/rand"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -253,4 +255,12 @@ func (etcdService *EtcdClientService) GetLocalIP() string {
 		}
 	}
 	return "127.0.0.1"
+}
+
+func NewServiceId() string {
+	return strconv.Itoa(rand.Intn(1000000))
+}
+
+func NewServiceKey(serviceId string, sName string) string {
+	return fmt.Sprintf("/services/%s/%s", sName, serviceId)
 }

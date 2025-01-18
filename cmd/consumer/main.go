@@ -39,16 +39,15 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	defer app.Stop()
+
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
 		if err != nil {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	//defer func() {
-	//	app.Stop()
-	//	logger.Info("app is stopped")
-	//}()
+	defer app.RegisterRecovers(logger, sig)()
 
 	postgres, postgresShutdown := pkg.NewPostgres(
 		logger,
@@ -202,6 +201,5 @@ func main() {
 		})
 
 	<-father.Done()
-	app.Stop()
 	logger.Info("application exited gracefully")
 }

@@ -3,7 +3,10 @@ package application
 import (
 	"fmt"
 	"go.uber.org/zap"
+	"os"
+	"runtime/debug"
 	"sync"
+	"syscall"
 )
 
 type LinkedList struct {
@@ -95,4 +98,16 @@ func (a *App) shutdownAllAndDeleteAllCanceled() {
 func (a *App) Stop() {
 	a.logger.Info("Stop()")
 	a.shutdownAllAndDeleteAllCanceled()
+}
+
+func (a *App) RegisterRecovers(logger *zap.Logger, sig chan os.Signal) func() {
+	return func() {
+		if r := recover(); r != nil {
+			logger.Error("Паника произошла в основном приложении",
+				zap.Any("panic", r),
+				zap.String("stack", string(debug.Stack())),
+			)
+			sig <- syscall.SIGTERM
+		}
+	}
 }

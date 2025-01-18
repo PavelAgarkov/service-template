@@ -31,12 +31,15 @@ func main() {
 	}()
 
 	app := application.NewApp(logger)
+	defer app.Stop()
+
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
 		if err != nil {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
+	defer app.RegisterRecovers(logger, sig)()
 
 	httpClient := server.NewHttpClientConnection(url.URL{Scheme: "http", Host: "localhost:8081"}, 0)
 	httpsClient, _ := server.NewHttpsClientConnection(url.URL{Scheme: "https", Host: "localhost:8080"}, "./server.crt", logger, 0)
@@ -54,7 +57,6 @@ func main() {
 	go listen(father, httpClient, logger)
 
 	<-father.Done()
-	app.Stop()
 }
 
 func listen(father context.Context, httpsClient *server.HttpClientConnection, logger *zap.Logger) {

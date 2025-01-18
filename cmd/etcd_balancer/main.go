@@ -7,14 +7,12 @@ import (
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
 	"service-template/application"
 	"service-template/internal"
 	"service-template/pkg"
 	"service-template/server"
-	"strconv"
 	"syscall"
 )
 
@@ -46,11 +44,12 @@ func main() {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
+	defer app.RegisterRecovers(logger, sig)()
 
 	port := ":" + os.Getenv("HTTP_PORT")
 
-	serviceID := strconv.Itoa(rand.Intn(1000000))
-	key := fmt.Sprintf("/loadbalancer/services/%s/%s", "my-service", serviceID)
+	serviceID := pkg.NewServiceId()
+	serviceKey := pkg.NewServiceKey(serviceID, "my-service")
 	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
 		father,
 		"http://localhost:2379",
@@ -58,7 +57,7 @@ func main() {
 		"adminpassword",
 		port,
 		"http",
-		key,
+		serviceKey,
 		serviceID,
 		logger,
 	)
