@@ -72,18 +72,16 @@ func main() {
 		logger.Error(fmt.Sprintf("failed to register service: %v", err))
 	}
 
-	session, err := concurrency.NewSession(etcdClientService.Client, concurrency.WithTTL(5))
+	_, err = etcdClientService.CreateSession(concurrency.WithTTL(5))
 	if err != nil {
-		logger.Fatal("Не удалось создать сессию etcd:", zap.Error(err))
+		logger.Error(fmt.Sprintf("failed to create session: %v", err))
 	}
 	app.RegisterShutdown("etcd_session", func() {
-		session.Close()
-		logger.Info("Сессия etcd закрыта")
+		etcdClientService.StopSession()
 	}, 98)
 
-	election := concurrency.NewElection(session, "/my-service/"+"leader-election")
-
-	stopElection := pkg.DoElection(logger, father, session, election)
+	election := concurrency.NewElection(etcdClientService.GetSession(), "/my-service/"+"leader-election")
+	stopElection := pkg.DoElection(logger, father, etcdClientService.GetSession(), election)
 	app.RegisterShutdown("election", stopElection, 97)
 
 	_ = internal.NewContainer(

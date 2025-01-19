@@ -128,7 +128,7 @@ func (lb *LoadBalancer) UpdateBackends(ctx context.Context, client *clientv3.Cli
 		value := string(kv.Value)
 
 		// Игнорируем собственный сервис
-		if key == lb.service.Key {
+		if key == lb.service.key {
 			continue
 		}
 

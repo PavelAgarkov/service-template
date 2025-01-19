@@ -8,9 +8,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/xid"
 	"go.uber.org/zap"
-	"log"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"service-template/pkg"
 	"time"
 )
@@ -113,9 +113,14 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 
 func RecoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rr := r.WithContext(r.Context())
+		logger := pkg.LoggerFromCtx(rr.Context())
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("Recovered from panic: %v", r)
+				logger.Error("Паника произошла в http запросе приложении",
+					zap.Any("panic", r),
+					zap.String("stack", string(debug.Stack())),
+				)
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 		}()

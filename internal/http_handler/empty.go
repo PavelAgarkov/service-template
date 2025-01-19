@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-playground/validator/v10"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"net/http"
 	"service-template/internal/repository"
 	"service-template/internal/service"
@@ -30,15 +31,32 @@ type EmptyRequest struct {
 func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 	//vars := mux.Vars(r)
 	//id := vars["id"]
+	ctx := r.Context()
+
+	l := pkg.LoggerFromCtx(ctx)
 
 	srv := h.Container().Get(service.ServiceSrv).(*service.Srv)
 	serializer := srv.GetServiceLocator().Get(pkg.SerializerService).(*pkg.Serializer)
 	repo := srv.GetServiceLocator().Get(repository.SrvRepositoryService).(*repository.SrvRepository)
 	postgres := repo.GetServiceLocator().Get(pkg.PostgresService).(*pkg.PostgresRepository)
+	etcd := srv.GetServiceLocator().Get(pkg.EtcdClient).(*pkg.EtcdClientService)
+	mutex := concurrency.NewMutex(etcd.GetSession(), "/distributed-lock/")
 
-	ctx := r.Context()
+	l.Info("EmptyHandler before lock")
+	if err := mutex.Lock(ctx); err != nil {
+		serializer.ResponseJson(w, []byte(err.Error()), http.StatusInternalServerError)
+		return
+	}
+	l.Info("EmptyHandler after lock")
 
-	l := pkg.LoggerFromCtx(ctx)
+	//time.Sleep(10 * time.Second)
+
+	l.Info("EmptyHandler before unlock")
+	if err := mutex.Unlock(ctx); err != nil {
+		serializer.ResponseJson(w, []byte(err.Error()), http.StatusInternalServerError)
+		return
+	}
+	l.Info("EmptyHandler after unlock")
 
 	empty := &EmptyRequest{}
 	err := serializer.Deserialize(r, empty)

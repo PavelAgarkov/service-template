@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
-	"log"
 	"math/rand"
 	"net"
 	"strconv"
@@ -22,9 +22,10 @@ type EtcdClientService struct {
 	lease     *clientv3.LeaseGrantResponse
 	logger    *zap.Logger
 	register  *sync.WaitGroup
+	session   *concurrency.Session
 	serviceId string
 	host      string
-	Key       string
+	key       string
 }
 
 func (etcdService *EtcdClientService) GetLease() *clientv3.LeaseGrantResponse {
@@ -51,7 +52,7 @@ func NewEtcdClientService(
 		Password:    pass,
 	})
 	if err != nil {
-		log.Fatalf("Не удалось подключиться к ETCD: %v", err)
+		logger.Fatal("Не удалось подключиться к ETCD: %v", zap.Error(err))
 	}
 
 	etcdService := &EtcdClientService{Client: client, logger: logger, register: &sync.WaitGroup{}}
@@ -61,7 +62,7 @@ func NewEtcdClientService(
 	}
 
 	etcdService.serviceId = serviceId
-	etcdService.Key = key
+	etcdService.key = key
 	etcdService.host = fmt.Sprintf("%s://%s%s", protocolPrefix, etcdService.GetLocalIP(), port)
 	etcdService.lease = lease
 
@@ -151,7 +152,7 @@ var closedErr = errors.New("closer error")
 var contextCancelledErr = errors.New("context canceled")
 
 func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientService, error) {
-	log.Println("KeepAlive канал закрыт")
+	etcdService.logger.Info("KeepAlive канал закрыт")
 	reconnectAttempts := 0
 	maxReconnectAttempts := 5
 
@@ -165,7 +166,7 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 		}
 
 		reconnectAttempts++
-		log.Printf("Попытка подключения %d/%d...\n", reconnectAttempts, maxReconnectAttempts)
+		etcdService.logger.Info(fmt.Sprintf("Попытка подключения %d/%d...\n", reconnectAttempts, maxReconnectAttempts))
 
 		newClient, err := clientv3.New(clientv3.Config{
 			Endpoints:   []string{"http://localhost:2379"}, // Замените address на ваши настройки
@@ -174,7 +175,7 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 			Password:    "adminpassword",
 		})
 		if err != nil {
-			log.Printf("Ошибка переподключения: %v\n", err)
+			etcdService.logger.Info(fmt.Sprintf("Ошибка переподключения: %v\n", err))
 			// Немного ждём и повторяем
 			select {
 			case <-ctx.Done():
@@ -185,12 +186,12 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 			continue
 		}
 
-		log.Println("Соединение с etcd восстановлено. Перезапускаем lease...")
+		etcdService.logger.Info("Соединение с etcd восстановлено. Перезапускаем lease...")
 
 		lease, err := newClient.Grant(ctx, 10)
 		if err != nil {
 			newClient.Close()
-			log.Printf("Ошибка при восстановлении lease: %v\n", err)
+			etcdService.logger.Info(fmt.Sprintf("Ошибка при восстановлении lease: %v\n", err))
 			continue
 		}
 
@@ -199,38 +200,38 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 			lease:     lease,
 			logger:    etcdService.logger,
 			serviceId: etcdService.serviceId,
-			Key:       etcdService.Key,
+			key:       etcdService.key,
 			host:      etcdService.host,
 		}
 
-		_, err = newClient.Put(ctx, newService.Key, newService.host, clientv3.WithLease(lease.ID))
+		_, err = newClient.Put(ctx, newService.key, newService.host, clientv3.WithLease(lease.ID))
 		if err != nil {
-			log.Printf("Ошибка при повторной регистрации ключа: %v\n", err)
+			etcdService.logger.Info(fmt.Sprintf("Ошибка при повторной регистрации ключа: %v\n", err))
 			newClient.Close()
 			continue
 		}
-		log.Println("Ключ успешно зарегистрирован заново.")
+		etcdService.logger.Info("Ключ успешно зарегистрирован заново.")
 
 		// Перезапускаем KeepAlive
 		ch, kaErr := newClient.KeepAlive(ctx, lease.ID)
 		if kaErr != nil {
-			log.Printf("Ошибка настройки KeepAlive: %v\n", kaErr)
+			etcdService.logger.Info(fmt.Sprintf("Ошибка настройки KeepAlive: %v\n", kaErr))
 			newClient.Close()
 			continue
 		}
 
-		log.Println("KeepAlive перезапущен.")
+		etcdService.logger.Info("KeepAlive перезапущен.")
 
 		// Здесь блокирующая часть: ждём keepalive-сообщения в цикле
 		for {
 			select {
 			case ka, ok := <-ch:
 				if !ok {
-					log.Println("KeepAlive канал закрыт")
-					log.Println("KeepAlive канал закрыт, попытка переподключения...")
+					etcdService.logger.Info("KeepAlive канал закрыт")
+					etcdService.logger.Info("KeepAlive канал закрыт, попытка переподключения...")
 					return newService, contextCancelledErr
 				}
-				log.Printf("Получено KeepAlive сообщение: TTL=%d\n", ka.TTL)
+				etcdService.logger.Info(fmt.Sprintf("Получено KeepAlive сообщение: TTL=%d\n", ka.TTL))
 
 			case <-ctx.Done():
 				newService.logger.Info("context done")
@@ -244,10 +245,32 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 	return etcdService, nil
 }
 
+func (etcdService *EtcdClientService) CreateSession(opts ...concurrency.SessionOption) (*concurrency.Session, error) {
+	if etcdService.session != nil {
+		return etcdService.session, nil
+	}
+	etcdService.session, _ = concurrency.NewSession(etcdService.Client, opts...)
+	return etcdService.session, nil
+}
+
+func (etcdService *EtcdClientService) StopSession() {
+	if etcdService.session != nil {
+		err := etcdService.session.Close()
+		if err != nil {
+			etcdService.logger.Error("Не удалось закрыть сессию", zap.Error(err))
+		}
+		etcdService.session = nil
+	}
+}
+
+func (etcdService *EtcdClientService) GetSession() *concurrency.Session {
+	return etcdService.session
+}
+
 func (etcdService *EtcdClientService) GetLocalIP() string {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		log.Fatalf("Не удалось получить IP адрес: %v", err)
+		etcdService.logger.Fatal("Не удалось получить IP адрес: %v", zap.Error(err))
 	}
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {

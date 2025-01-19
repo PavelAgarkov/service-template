@@ -87,13 +87,20 @@ func main() {
 		serviceID,
 		logger,
 	)
+	_, err := etcdClientService.CreateSession()
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to create session: %v", err))
+	}
+	app.RegisterShutdown("etcd_session", func() {
+		etcdClientService.StopSession()
+	}, 98)
 
 	app.RegisterShutdown(pkg.EtcdClient, func() {
 		etcdCloser()
 		logger.Info("etcd client closed")
 	}, 99)
 
-	err := etcdClientService.Register(father, logger)
+	err = etcdClientService.Register(father, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to register service: %v", err))
 	}
@@ -105,7 +112,7 @@ func main() {
 		&internal.ServiceInit{Name: pkg.EtcdClient, Service: etcdClientService},
 	).
 		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService)
+		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService, pkg.EtcdClient)
 
 	handlers := http_handler.NewHandlers(container)
 
