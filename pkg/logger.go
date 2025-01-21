@@ -10,11 +10,24 @@ import (
 
 type ctxKey struct{}
 
-func NewLogger(appName string, logfile string) *zap.Logger {
+type LoggerConfig struct {
+	ServiceName string
+	LogPath     string
+}
+
+func ProvideLoggerConfig(serviceName string, logPath string) LoggerConfig {
+	return LoggerConfig{
+		ServiceName: "simple_http_server",
+		LogPath:     "logs/app.log",
+	}
+}
+
+// func NewLogger(appName string, logfile string) *zap.Logger {
+func NewLogger(cfg LoggerConfig) *zap.Logger {
 	stdout := zapcore.AddSync(os.Stdout)
 
 	file := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   logfile,
+		Filename:   cfg.LogPath,
 		MaxSize:    5,
 		MaxBackups: 10,
 		MaxAge:     14,
@@ -41,7 +54,7 @@ func NewLogger(appName string, logfile string) *zap.Logger {
 		zapcore.NewCore(fileEncoder, file, logLevel),
 	)
 
-	return zap.New(core).With(zap.String("application", appName))
+	return zap.New(core).With(zap.String("application", cfg.ServiceName))
 }
 
 func LoggerFromCtx(ctx context.Context) *zap.Logger {

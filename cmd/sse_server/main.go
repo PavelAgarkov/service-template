@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	logger := pkg.NewLogger("websocket-server", "logs/app.log")
+	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "websocket-server", LogPath: "logs/app.log"})
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()

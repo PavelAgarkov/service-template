@@ -21,7 +21,7 @@ import (
 )
 
 func main() {
-	logger := pkg.NewLogger("background_rabbit", "logs/app.log")
+	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "background_rabbit", LogPath: "logs/app.log"})
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()

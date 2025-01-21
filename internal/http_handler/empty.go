@@ -6,7 +6,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"net/http"
-	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
 )
@@ -35,11 +34,15 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 
 	l := pkg.LoggerFromCtx(ctx)
 
-	srv := h.Container().Get(service.ServiceSrv).(*service.Srv)
-	serializer := srv.GetServiceLocator().Get(pkg.SerializerService).(*pkg.Serializer)
-	repo := srv.GetServiceLocator().Get(repository.SrvRepositoryService).(*repository.SrvRepository)
-	postgres := repo.GetServiceLocator().Get(pkg.PostgresService).(*pkg.PostgresRepository)
-	etcd := srv.GetServiceLocator().Get(pkg.EtcdClient).(*pkg.EtcdClientService)
+	srv, fined := h.Container().Get(service.ServiceSrv).(*service.Srv)
+	if !fined {
+		err := errors.New("service not found")
+		l.Error(err.Error())
+		return
+	}
+	serializer := srv.GetSerializerService()
+	postgres := srv.GetPostgresRepository()
+	etcd := srv.GetEtcdClientService()
 	mutex := concurrency.NewMutex(etcd.GetSession(), "/distributed-lock/")
 
 	l.Info("EmptyHandler before lock")
