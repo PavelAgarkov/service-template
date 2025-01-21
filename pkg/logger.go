@@ -15,13 +15,6 @@ type LoggerConfig struct {
 	LogPath     string
 }
 
-func ProvideLoggerConfig(serviceName string, logPath string) LoggerConfig {
-	return LoggerConfig{
-		ServiceName: "simple_http_server",
-		LogPath:     "logs/app.log",
-	}
-}
-
 // func NewLogger(appName string, logfile string) *zap.Logger {
 func NewLogger(cfg LoggerConfig) *zap.Logger {
 	stdout := zapcore.AddSync(os.Stdout)

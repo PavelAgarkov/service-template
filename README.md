@@ -40,3 +40,18 @@ run_goose_migration - запуск миграций goose
 run_goose_migration_down - откат миграций goose
 init_project - инициализация проекта
 build_swagger_docs - сборка swagger документации
+```
+
+```bash
+docker exec -it elasticsearch \
+  /usr/share/elasticsearch/bin/elasticsearch-setup-passwords interactive
+```
+По очереди задаём пароли для elastic, kibana_system, logstash_system и т.д.
+Обратите внимание, здесь пароль для elastic должен совпадать с ELASTIC_PASSWORD=elasticpassword из docker-compose.yml.
+Для kibana_system введите kibanapassword (соответствует значению в конфиге Kibana).
+Kibana подключится к Elasticsearch под логином kibana_system:kibanapassword.
+
+Заходим в Kibana
+Открывайте http://localhost:5601.
+При появлении формы логина введите elastic / elasticpassword (суперпользователь), или заранее созданный другой пользователь.
+Kibana уже будет иметь необходимые права через системного пользователя kibana_system (но внутрь Kibana для UI-работы вы входите логином elastic или другим).

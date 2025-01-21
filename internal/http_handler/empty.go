@@ -52,8 +52,6 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	l.Info("EmptyHandler after lock")
 
-	//time.Sleep(10 * time.Second)
-
 	l.Info("EmptyHandler before unlock")
 	if err := mutex.Unlock(ctx); err != nil {
 		serializer.ResponseJson(w, []byte(err.Error()), http.StatusInternalServerError)
