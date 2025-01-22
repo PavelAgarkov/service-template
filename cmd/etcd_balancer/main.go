@@ -97,8 +97,6 @@ func main() {
 		}
 	}()
 
-	//app.RegisterShutdown("load_balancer", closeLb, 1)
-
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
 		loadBalancer,

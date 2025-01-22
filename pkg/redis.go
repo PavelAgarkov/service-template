@@ -33,8 +33,3 @@ func NewClusterClient(options *redis.ClusterOptions, logger *zap.Logger) *RedisC
 		logger:        logger,
 	}
 }
-
-//err = rdb.Client.Set(father, "key", "value_1", 1*time.Minute).Err()
-//if err != nil {
-//	panic(fmt.Sprintf("Не удалось записать значение в Redis: %v", err))
-//}

@@ -9,22 +9,7 @@ import (
 
 func (bs *ConsumerRabbitService) BlankConsumer(ctx context.Context) func(d gorabbitmq.Delivery) gorabbitmq.Action {
 	return func(d gorabbitmq.Delivery) gorabbitmq.Action {
-		//postgres := bs.GetServiceLocator().Get(pkg.PostgresService).(*pkg.PostgresRepository)
 		l := pkg.LoggerFromCtx(ctx)
-
-		//row := postgres.GetDB().QueryRow("insert into user_p(id) values (1);")
-		//if err := row.Err(); err != nil {
-		//	l.Error(err.Error())
-		//	// возвращаем NackRequeue, чтобы сообщение вернулось в очередь
-		//	return gorabbitmq.NackRequeue
-		//}
-		//row1 := postgres.GetDB().QueryRow("select count(*) from user_p")
-		//if err := row1.Err(); err != nil {
-		//	l.Error(err.Error())
-		//	return gorabbitmq.NackDiscard
-		//}
-		//a := 0
-		//row1.Scan(&a)
 
 		//publisher1 := bs.GetServiceLocator().Get(Publisher1).(*gorabbitmq.Publisher)
 		publisher1 := bs.publisher1

@@ -1,21 +1,17 @@
 package websocket_client
 
 import (
-	"service-template/internal"
+	"go.uber.org/dig"
 )
 
 type Handlers struct {
-	globalContainer *internal.Container
+	dig *dig.Container
 }
 
 func NewHandlers(
-	globalContainer *internal.Container,
+	dig *dig.Container,
 ) *Handlers {
 	return &Handlers{
-		globalContainer: globalContainer,
+		dig: dig,
 	}
-}
-
-func (h *Handlers) Container() *internal.Container {
-	return h.globalContainer
 }
