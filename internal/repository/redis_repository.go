@@ -11,6 +11,11 @@ const RedisRepositoryLabel = "redis_repository"
 
 type RedisRepository struct {
 	locator internal.LocatorInterface
+	client  *pkg.RedisClient
+}
+
+func (repo *RedisRepository) SetClient(client *pkg.RedisClient) {
+	repo.client = client
 }
 
 func NewRedisRepository() *RedisRepository {
@@ -26,7 +31,7 @@ func (repo *RedisRepository) GetServiceLocator() internal.LocatorInterface {
 }
 
 func (repo *RedisRepository) SetAppName(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	redis := repo.locator.Get(pkg.RedisClientService).(*pkg.RedisClient)
+	redis := repo.client
 	redis.Client.Set(ctx, key, value, expiration)
 	return nil
 }

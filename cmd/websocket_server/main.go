@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.uber.org/dig"
 	"net/http"
 	"os"
 	"os/signal"
 	"service-template/application"
-	"service-template/internal"
 	"service-template/internal/websocket_handler"
 	"service-template/pkg"
 	"service-template/server"
@@ -40,7 +40,7 @@ func main() {
 	}, 101)
 	defer app.RegisterRecovers(logger, sig)()
 
-	container := internal.NewContainer(logger)
+	container := dig.New()
 
 	hub := server.NewHub()
 	app.RegisterShutdown("garbage_collector", hub.CollectGarbageConnections(logger), 1)

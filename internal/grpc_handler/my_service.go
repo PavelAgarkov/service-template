@@ -1,21 +1,26 @@
 package grpc_handler
 
 import (
+	"go.uber.org/dig"
 	myservice "service-template/cmd/grps_server/pb/myservice/pb"
-	"service-template/internal"
+	"service-template/internal/service"
+	"service-template/pkg"
 )
 
 type MyService struct {
 	myservice.UnimplementedMyServiceServer
-	globalContainer *internal.Container
+	srv      *service.Srv
+	postgres *pkg.PostgresRepository
 }
 
-func NewMyService(globalContainer *internal.Container) *MyService {
-	return &MyService{
-		globalContainer: globalContainer,
+func NewMyService(dig *dig.Container) *MyService {
+	my := &MyService{}
+	err := dig.Invoke(func(srv *service.Srv, postgres *pkg.PostgresRepository) {
+		my.srv = srv
+		my.postgres = postgres
+	})
+	if err != nil {
+		panic(err)
 	}
-}
-
-func (ms *MyService) Container() *internal.Container {
-	return ms.globalContainer
+	return my
 }

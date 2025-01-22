@@ -33,9 +33,9 @@ func (suite *EmptyTestSuite) SetupSuite() {
 	}
 	suite.pgContainer = pgContainer
 
-	logger := pkg.NewLogger("test", "logs/app.log")
+	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "test", LogPath: "logs/app.log"})
 
-	postgres, _ := pkg.NewPostgres(
+	postgres := pkg.NewPostgres(
 		logger,
 		pgContainer.DBConfig.Host,
 		pgContainer.DBConfig.Port,
@@ -73,7 +73,7 @@ func (suite *EmptyTestSuite) TestSuiteEmptyHandler() {
 
 	assert.NoError(t, err)
 
-	handlers := NewHandlers(suite.container)
+	handlers := NewHandlers(suite.container, nil)
 
 	rr := httptest.NewRecorder()
 	h := http.HandlerFunc(handlers.EmptyHandler)

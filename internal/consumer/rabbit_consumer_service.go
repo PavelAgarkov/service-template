@@ -6,6 +6,8 @@ import (
 	"fmt"
 	amqp "github.com/rabbitmq/amqp091-go"
 	gorabbitmq "github.com/wagslane/go-rabbitmq"
+	"go.uber.org/dig"
+	"log"
 	"service-template/internal"
 	"service-template/pkg"
 )
@@ -26,11 +28,28 @@ type RabbitConsumers interface {
 }
 
 type ConsumerRabbitService struct {
-	locator internal.LocatorInterface
+	locator    internal.LocatorInterface
+	postgres   *pkg.PostgresRepository
+	publisher0 *gorabbitmq.Publisher
+	publisher1 *gorabbitmq.Publisher
 }
 
-func NewConsumerRabbitService() *ConsumerRabbitService {
-	return &ConsumerRabbitService{}
+func NewConsumerRabbitService(dig *dig.Container) *ConsumerRabbitService {
+	c := &ConsumerRabbitService{}
+
+	err := dig.Invoke(func(p *pkg.PostgresRepository) {
+		c.postgres = p
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return c
+}
+
+func (bs *ConsumerRabbitService) SetPublishers(publisher, publisher1 *gorabbitmq.Publisher) {
+	bs.publisher0 = publisher
+	bs.publisher1 = publisher1
 }
 
 func (bs *ConsumerRabbitService) SetServiceLocator(container internal.LocatorInterface) {
@@ -86,7 +105,7 @@ func (bs *ConsumerRabbitService) HandleFailedMessageFromRabbitServer(father cont
 			return err
 		}
 
-		postgres := bs.GetServiceLocator().Get(pkg.PostgresService).(*pkg.PostgresRepository)
+		postgres := bs.postgres
 		rows, err := postgres.GetDB().NamedQuery("INSERT INTO rabbit_returns (data) VALUES (:data);", map[string]interface{}{
 			"data": jsonData,
 		})

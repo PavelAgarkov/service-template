@@ -17,15 +17,16 @@ import (
 const EtcdClient = "etcd-client-service"
 
 type EtcdClientService struct {
-	Client    *clientv3.Client
-	leaseMu   sync.Mutex
-	lease     *clientv3.LeaseGrantResponse
-	logger    *zap.Logger
-	register  *sync.WaitGroup
-	session   *concurrency.Session
-	serviceId string
-	host      string
-	key       string
+	Client       *clientv3.Client
+	leaseMu      sync.Mutex
+	lease        *clientv3.LeaseGrantResponse
+	logger       *zap.Logger
+	register     *sync.WaitGroup
+	session      *concurrency.Session
+	serviceId    string
+	host         string
+	key          string
+	ShutdownFunc func()
 }
 
 func (etcdService *EtcdClientService) GetLease() *clientv3.LeaseGrantResponse {
@@ -44,7 +45,7 @@ func NewEtcdClientService(
 	key string,
 	serviceId string,
 	logger *zap.Logger,
-) (*EtcdClientService, func()) {
+) *EtcdClientService {
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{address},
 		DialTimeout: 5 * time.Second,
@@ -65,8 +66,9 @@ func NewEtcdClientService(
 	etcdService.key = key
 	etcdService.host = fmt.Sprintf("%s://%s%s", protocolPrefix, etcdService.GetLocalIP(), port)
 	etcdService.lease = lease
+	etcdService.ShutdownFunc = etcdService.Close(ctx)
 
-	return etcdService, etcdService.Close(ctx)
+	return etcdService
 }
 
 func (etcdService *EtcdClientService) Close(ctx context.Context) func() {
