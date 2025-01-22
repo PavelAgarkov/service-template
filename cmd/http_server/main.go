@@ -104,7 +104,7 @@ func main() {
 	//	Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService, pkg.EtcdClient)
 	//
 
-	handlers := http_handler.NewHandlers(nil, container)
+	handlers := http_handler.NewHandlers(container)
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
 		nil,

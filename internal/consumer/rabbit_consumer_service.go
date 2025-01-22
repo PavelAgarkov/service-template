@@ -52,14 +52,6 @@ func (bs *ConsumerRabbitService) SetPublishers(publisher, publisher1 *gorabbitmq
 	bs.publisher1 = publisher1
 }
 
-func (bs *ConsumerRabbitService) SetServiceLocator(container internal.LocatorInterface) {
-	bs.locator = container
-}
-
-func (bs *ConsumerRabbitService) GetServiceLocator() internal.LocatorInterface {
-	return bs.locator
-}
-
 func (bs *ConsumerRabbitService) Run(father context.Context, router map[string]*RabbitConsumeRoute) {
 	l := pkg.LoggerFromCtx(father)
 	for k, route := range router {
