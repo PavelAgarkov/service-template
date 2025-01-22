@@ -5,31 +5,27 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/websocket"
-	"service-template/internal"
+	"go.uber.org/dig"
 	"service-template/server"
 )
 
 type Handlers struct {
-	globalContainer *internal.Container
-	hub             *server.Hub
-	upgrader        *websocket.Upgrader
-	wsrouter        *WsRouter
+	dig      *dig.Container
+	hub      *server.Hub
+	upgrader *websocket.Upgrader
+	wsrouter *WsRouter
 }
 
 func NewHandlers(
-	globalContainer *internal.Container,
+	dig *dig.Container,
 	hub *server.Hub,
 	upgrader *websocket.Upgrader,
 ) *Handlers {
 	return &Handlers{
-		globalContainer: globalContainer,
-		hub:             hub,
-		upgrader:        upgrader,
+		dig:      dig,
+		hub:      hub,
+		upgrader: upgrader,
 	}
-}
-
-func (h *Handlers) Container() *internal.Container {
-	return h.globalContainer
 }
 
 type WsRouter struct {

@@ -5,16 +5,14 @@ import (
 	"github.com/bsm/redislock"
 	"github.com/google/uuid"
 	"log"
-	"service-template/internal/repository"
-	"service-template/pkg"
 	"time"
 )
 
 func (cr *CronService) Blank(father context.Context) func() {
 	return func() { // Каждую минуту
-		cron := cr.GetServiceLocator().Get(pkg.CronPackage).(*pkg.Cron)
+		cron := cr.cron
 		lock, err := cron.Locker.Obtain(father, "my_cron_lock", 2*time.Second, nil)
-		redisRepo := cr.GetServiceLocator().Get(repository.RedisRepositoryLabel).(*repository.RedisRepository)
+		redisRepo := cr.redisRepo
 		if err == redislock.ErrNotObtained {
 			log.Println("Блокировка уже установлена, пропускаем выполнение задачи.")
 			_ = redisRepo.SetAppName(father, "random_key"+uuid.New().String(), uuid.New().String(), 10*time.Second)

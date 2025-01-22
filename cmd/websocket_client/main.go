@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"go.uber.org/dig"
 	"net/url"
 	"os"
 	"os/signal"
 	"service-template/application"
-	"service-template/internal"
 	"service-template/internal/websocket_client"
 	"service-template/pkg"
 	"sync"
@@ -42,7 +42,7 @@ func main() {
 	}, 101)
 	defer app.RegisterRecovers(logger, sig)()
 
-	container := internal.NewContainer(logger)
+	container := dig.New()
 	webSocketClientHandler := websocket_client.NewHandlers(container)
 
 	wg := sync.WaitGroup{}

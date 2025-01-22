@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"service-template/application"
-	"service-template/internal"
 	"service-template/pkg"
 	"service-template/server"
 	"syscall"
@@ -50,7 +49,7 @@ func main() {
 
 	serviceID := pkg.NewServiceId()
 	serviceKey := pkg.NewServiceKey(serviceID, "my-service")
-	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
+	etcdClientService := pkg.NewEtcdClientService(
 		father,
 		"http://localhost:2379",
 		"admin",
@@ -63,7 +62,7 @@ func main() {
 	)
 
 	app.RegisterShutdown(pkg.EtcdClient, func() {
-		etcdCloser()
+		etcdClientService.ShutdownFunc()
 		logger.Info("etcd client closed")
 	}, 99)
 
@@ -84,12 +83,6 @@ func main() {
 	stopElection := pkg.DoElection(logger, father, etcdClientService.GetSession(), election)
 	app.RegisterShutdown("election", stopElection, 97)
 
-	_ = internal.NewContainer(
-		logger,
-		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
-		&internal.ServiceInit{Name: pkg.EtcdClient, Service: etcdClientService},
-	)
-
 	loadBalancer := pkg.NewLoadBalancer(logger, etcdClientService)
 
 	var g run.Group
@@ -103,8 +96,6 @@ func main() {
 			logger.Error("Ошибка при запуске controller", zap.Error(e))
 		}
 	}()
-
-	//app.RegisterShutdown("load_balancer", closeLb, 1)
 
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,

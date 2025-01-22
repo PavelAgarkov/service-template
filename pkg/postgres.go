@@ -9,11 +9,12 @@ import (
 const PostgresService = "postgres"
 
 type PostgresRepository struct {
-	db     *sqlx.DB
-	logger *zap.Logger
+	db           *sqlx.DB
+	ShutdownFunc func()
+	logger       *zap.Logger
 }
 
-func NewPostgres(logger *zap.Logger, host, port, user, password, dbname, sslMode string) (*PostgresRepository, func()) {
+func NewPostgres(logger *zap.Logger, host, port, user, password, dbname, sslMode string) *PostgresRepository {
 	dataSourceName := "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=" + dbname + " sslmode=" + sslMode
 	db, err := sqlx.Connect("postgres", dataSourceName)
 	if err != nil {
@@ -23,7 +24,8 @@ func NewPostgres(logger *zap.Logger, host, port, user, password, dbname, sslMode
 		db:     db,
 		logger: logger,
 	}
-	return r, r.Shutdown()
+	r.ShutdownFunc = r.Shutdown()
+	return r
 }
 
 func (r *PostgresRepository) Shutdown() func() {

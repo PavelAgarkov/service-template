@@ -5,18 +5,12 @@ import (
 	"fmt"
 	"log"
 	myservice "service-template/cmd/grps_server/pb/myservice/pb"
-	"service-template/internal/service"
 )
 
 func (ms *MyService) SayHello(ctx context.Context, req *myservice.HelloRequest) (*myservice.HelloReply, error) {
 	log.Printf("Received: %v", req.Name)
-	srv, fined := ms.Container().Get(service.ServiceSrv).(*service.Srv)
-	if !fined {
-		err := fmt.Errorf("service not found")
-		log.Println(err)
-		return nil, err
-	}
-	postgres := srv.GetPostgresRepository()
+	srv := ms.srv
+	postgres := ms.postgres
 
 	fmt.Println(srv)
 
