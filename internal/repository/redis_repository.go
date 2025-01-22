@@ -16,8 +16,10 @@ func (repo *RedisRepository) SetClient(client *pkg.RedisClient) {
 	repo.client = client
 }
 
-func NewRedisRepository() *RedisRepository {
-	return &RedisRepository{}
+func NewRedisRepository(client *pkg.RedisClient) *RedisRepository {
+	return &RedisRepository{
+		client: client,
+	}
 }
 
 func (repo *RedisRepository) SetAppName(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
