@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"go.uber.org/zap"
 	"log"
 	"net/http"
 	"os"
@@ -11,13 +12,14 @@ import (
 	"service-template/application"
 	_ "service-template/cmd/http_server/docs"
 	"service-template/config"
-	"service-template/internal"
 	"service-template/internal/http_handler"
 	"service-template/internal/repository"
 	"service-template/internal/service"
 	"service-template/pkg"
 	"service-template/server"
 	"syscall"
+
+	"go.uber.org/dig"
 )
 
 // @title Simple HTTP Server API
@@ -37,6 +39,9 @@ func main() {
 
 	logger.Info("config initializing")
 	cfg := config.GetConfig()
+	port := ":" + os.Getenv("HTTP_PORT")
+
+	container := BuildContainer(father, logger, cfg, port)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -47,75 +52,59 @@ func main() {
 		logger.Info("Signal received. Shutting down server...")
 		cancel()
 	}()
-
 	app := application.NewApp(logger)
 	defer app.Stop()
-
-	app.RegisterShutdown("logger", func() {
-		err := logger.Sync()
-		if err != nil {
-			logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
-		}
-	}, 101)
 	defer app.RegisterRecovers(logger, sig)()
 
-	postgres, postgresShutdown := pkg.NewPostgres(
-		logger,
-		cfg.DB.Host,
-		cfg.DB.Port,
-		cfg.DB.Username,
-		cfg.DB.Password,
-		cfg.DB.Database,
-		"disable",
-	)
-	app.RegisterShutdown("postgres", postgresShutdown, 100)
+	err := container.Invoke(func(
+		postgres *pkg.PostgresRepository,
+		etcdClientService *pkg.EtcdClientService,
+		srvRepository *repository.SrvRepository,
+		srvService *service.Srv,
+	) {
+		app.RegisterShutdown("logger", func() {
+			err := logger.Sync()
+			if err != nil {
+				logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
+			}
+		}, 101)
 
-	pkg.NewMigrations(postgres.GetDB().DB, logger).Migrate("./migrations", "goose_db_version")
+		app.RegisterShutdown("postgres", postgres.ShutdownFunc, 100)
+		pkg.NewMigrations(postgres.GetDB().DB, logger).Migrate("./migrations", "goose_db_version")
 
-	port := ":" + os.Getenv("HTTP_PORT")
+		_, err := etcdClientService.CreateSession()
+		if err != nil {
+			logger.Error(fmt.Sprintf("failed to create session: %v", err))
+		}
+		app.RegisterShutdown("etcd_session", func() {
+			etcdClientService.StopSession()
+		}, 98)
+		app.RegisterShutdown(pkg.EtcdClient, func() {
+			etcdClientService.ShutdownFunc()
+			logger.Info("etcd client closed")
+		}, 99)
+		err = etcdClientService.Register(father, logger)
+		if err != nil {
+			logger.Error(fmt.Sprintf("failed to register service: %v", err))
+		}
+	})
 
-	serviceID := pkg.NewServiceId()
-	serviceKey := pkg.NewServiceKey(serviceID, "my-service")
-	etcdClientService, etcdCloser := pkg.NewEtcdClientService(
-		father,
-		"http://localhost:2379",
-		"admin",
-		"adminpassword",
-		port,
-		"http",
-		serviceKey,
-		serviceID,
-		logger,
-	)
-	_, err := etcdClientService.CreateSession()
 	if err != nil {
-		logger.Error(fmt.Sprintf("failed to create session: %v", err))
-	}
-	app.RegisterShutdown("etcd_session", func() {
-		etcdClientService.StopSession()
-	}, 98)
-
-	app.RegisterShutdown(pkg.EtcdClient, func() {
-		etcdCloser()
-		logger.Info("etcd client closed")
-	}, 99)
-
-	err = etcdClientService.Register(father, logger)
-	if err != nil {
-		logger.Error(fmt.Sprintf("failed to register service: %v", err))
+		logger.Error(fmt.Sprintf("failed to start DI: %v", err))
+		return
 	}
 
-	container := internal.NewContainer(
-		logger,
-		&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
-		&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
-		&internal.ServiceInit{Name: pkg.EtcdClient, Service: etcdClientService},
-	).
-		Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-		Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService, pkg.EtcdClient)
+	//containerC := internal.NewContainer(logger)
+	//	logger,
+	//	&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
+	//	&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
+	//	&internal.ServiceInit{Name: pkg.EtcdClient, Service: etcdClientService},
+	//).
+	//	Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
+	//	Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService, pkg.EtcdClient)
+	//
 
-	handlers := http_handler.NewHandlers(container)
-
+	handlers := http_handler.NewHandlers(nil, container)
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
 		nil,
@@ -136,19 +125,87 @@ func main() {
 	//-days 365 \
 	//-subj "/CN=localhost" \
 	//-addext "subjectAltName=DNS:localhost"
-	//simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
-	//	logger,
-	//	handlerList(handlers),
-	//	":8080",        // Порт сервера
-	//	"./server.crt", // Путь к сертификату
-	//	"./server.key", // Путь к ключу
-	//	server.LoggerContextMiddleware(logger),
-	//	server.RecoverMiddleware,
-	//	server.LoggingMiddleware,
-	//)
-	//app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
-
+	simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
+		logger,
+		nil,
+		handlerList(handlers),
+		":8433",        // Порт сервера
+		"./server.crt", // Путь к сертификату
+		"./server.key", // Путь к ключу
+		server.LoggerContextMiddleware(logger),
+		server.RecoverMiddleware,
+		server.LoggingMiddleware,
+	)
+	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
 	<-father.Done()
+}
+
+func BuildContainer(father context.Context, logger *zap.Logger, cfg *config.Config, port string) *dig.Container {
+	container := dig.New()
+	err := container.Provide(func() *zap.Logger { return logger })
+	if err != nil {
+		log.Fatalf("failed to provide logger %v", err)
+	}
+	err = container.Provide(func() *config.Config { return cfg })
+	if err != nil {
+		log.Fatalf("failed to provide config %v", err)
+	}
+	err = container.Provide(func() *pkg.PostgresRepository {
+		return pkg.NewPostgres(
+			logger,
+			cfg.DB.Host,
+			cfg.DB.Port,
+			cfg.DB.Username,
+			cfg.DB.Password,
+			cfg.DB.Database,
+			"disable",
+		)
+	})
+	if err != nil {
+		log.Fatalf("failed to provide postgres %v", err)
+	}
+
+	serviceID := pkg.NewServiceId()
+	//serviceKey := pkg.NewServiceKey(serviceID, "my-service")
+	err = container.Provide(func() *pkg.EtcdClientService {
+		return pkg.NewEtcdClientService(
+			father,
+			"http://localhost:2379",
+			"admin",
+			"adminpassword",
+			port,
+			"http",
+			pkg.NewServiceKey(serviceID, "my-service"),
+			serviceID,
+			logger,
+		)
+	})
+	if err != nil {
+		log.Fatalf("failed to provide etcd %v", err)
+	}
+
+	err = container.Provide(func() *repository.SrvRepository {
+		return repository.NewSrvRepository()
+	})
+	if err != nil {
+		log.Fatalf("failed to provide repository %v", err)
+	}
+
+	err = container.Provide(func() *service.Srv {
+		return service.NewSrv()
+	})
+	if err != nil {
+		log.Fatalf("failed to provide service %v", err)
+	}
+
+	err = container.Provide(func() *pkg.Serializer {
+		return pkg.NewSerializer()
+	})
+	if err != nil {
+		log.Fatalf("failed to provide serializer %v", err)
+	}
+
+	return container
 }
 
 func handlerList(handlers *http_handler.Handlers) func(simple *server.HTTPServer) {

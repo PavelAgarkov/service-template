@@ -26,7 +26,8 @@ func (bs *ConsumerRabbitService) BlankConsumer(ctx context.Context) func(d gorab
 		//a := 0
 		//row1.Scan(&a)
 
-		publisher1 := bs.GetServiceLocator().Get(Publisher1).(*gorabbitmq.Publisher)
+		//publisher1 := bs.GetServiceLocator().Get(Publisher1).(*gorabbitmq.Publisher)
+		publisher1 := bs.publisher1
 		confirms, err := publisher1.PublishWithDeferredConfirmWithContext(
 			ctx,
 			[]byte("publisher: hello, world"),

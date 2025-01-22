@@ -25,6 +25,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.34.0
 	github.com/wagslane/go-rabbitmq v0.14.2
 	go.etcd.io/etcd/client/v3 v3.5.17
+	go.uber.org/dig v1.18.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.34.2
