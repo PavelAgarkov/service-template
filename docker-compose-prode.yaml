@@ -130,6 +130,7 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+# http://localhost:5601/app/dev_tools#/console
   kibana:
     image: docker.elastic.co/kibana/kibana:8.6.0
     container_name: kibana
