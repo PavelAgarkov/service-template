@@ -104,6 +104,13 @@ func BuildContainer(logger *zap.Logger, cfg *config.Config, connectionRabbitStri
 		log.Fatalf("failed to provide serializer %v", err)
 	}
 
+	err = container.Provide(func(postgres *pkg.PostgresRepository, logger *zap.Logger, redisClient *pkg.RedisClient) *pkg.Migrations {
+		return pkg.NewMigrations(postgres.GetDB().DB, logger, redisClient.Client)
+	})
+	if err != nil {
+		log.Fatalf("failed to provide migrations %v", err)
+	}
+
 	return container
 }
 
@@ -137,6 +144,7 @@ func main() {
 		postgres *pkg.PostgresRepository,
 		connrmq *gorabbitmq.Conn,
 		redisClient *pkg.RedisClient,
+		migrations *pkg.Migrations,
 	) {
 		app.RegisterShutdown("logger", func() {
 			err := logger.Sync()
@@ -146,12 +154,10 @@ func main() {
 		}, 101)
 
 		app.RegisterShutdown("postgres", postgres.ShutdownFunc, 100)
-		pkg.NewMigrations(postgres.GetDB().DB, logger).Migrate("./migrations", "goose_db_version")
+		migrations.Migrate(father, "./migrations", "goose_db_version")
 
 		app.RegisterShutdown("rabbitmq", func() { _ = connrmq.Close() }, 100)
-		pkg.NewMigrations(postgres.GetDB().DB, logger).
-			Migrate("./migrations", "goose_db_version").
-			MigrateRabbitMq("rabbit_migrations", []string{connectionRabbitString})
+		migrations.MigrateRabbitMq(father, "rabbit_migrations", []string{connectionRabbitString})
 
 		app.RegisterShutdown(
 			"redis-node",
