@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"service-template/internal"
 	"service-template/pkg"
 	"time"
 )
@@ -10,24 +9,17 @@ import (
 const RedisRepositoryLabel = "redis_repository"
 
 type RedisRepository struct {
-	locator internal.LocatorInterface
-	client  *pkg.RedisClient
+	client *pkg.RedisClient
 }
 
 func (repo *RedisRepository) SetClient(client *pkg.RedisClient) {
 	repo.client = client
 }
 
-func NewRedisRepository() *RedisRepository {
-	return &RedisRepository{}
-}
-
-func (repo *RedisRepository) SetServiceLocator(container internal.LocatorInterface) {
-	repo.locator = container
-}
-
-func (repo *RedisRepository) GetServiceLocator() internal.LocatorInterface {
-	return repo.locator
+func NewRedisRepository(client *pkg.RedisClient) *RedisRepository {
+	return &RedisRepository{
+		client: client,
+	}
 }
 
 func (repo *RedisRepository) SetAppName(ctx context.Context, key string, value interface{}, expiration time.Duration) error {

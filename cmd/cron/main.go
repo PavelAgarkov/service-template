@@ -87,12 +87,20 @@ func BuildContainer(logger *zap.Logger, cfg *config.Config, connectionRabbitStri
 		log.Fatalf("failed to provide redis %v", err)
 	}
 
-	err = container.Provide(func() *repository.RedisRepository {
-		return repository.NewRedisRepository()
+	err = container.Provide(func(client *pkg.RedisClient) *repository.RedisRepository {
+		return repository.NewRedisRepository(client)
 	})
 	if err != nil {
 		log.Fatalf("failed to provide redis repository %v", err)
 	}
+
+	err = container.Provide(func(client *pkg.RedisClient, logger *zap.Logger) *pkg.Cron {
+		return pkg.NewCronClient(client.Client, logger)
+	})
+
+	err = container.Provide(func(client *pkg.RedisClient, cronCl *pkg.Cron, redisRepo *repository.RedisRepository) *cron.CronService {
+		return cron.NewCronService(cronCl, client.Client, redisRepo)
+	})
 
 	err = container.Provide(func() *service.Srv {
 		return service.NewSrv()
@@ -142,6 +150,8 @@ func main() {
 		connrmq *gorabbitmq.Conn,
 		redisRepo *repository.RedisRepository,
 		redisClient *pkg.RedisClient,
+		cronClient *pkg.Cron,
+		cronService *cron.CronService,
 	) {
 		app.RegisterShutdown("logger", func() {
 			err := logger.Sync()
@@ -168,13 +178,9 @@ func main() {
 			100,
 		)
 
-		redisRepo.SetClient(redisClient)
-		cronCl := pkg.NewCronClient(redisClient.Client, logger)
-		cronService := cron.NewCronService(cronCl, redisClient.Client, redisRepo)
-
-		cronCl.AddSchedule("* * * * * *", cronService.Blank(father))
-		cronCl.C.Start()
-		app.RegisterShutdown("cron", func() { cronCl.C.Stop() }, 10)
+		cronClient.AddSchedule("* * * * * *", cronService.Blank(father))
+		cronClient.C.Start()
+		app.RegisterShutdown("cron", func() { cronClient.C.Stop() }, 10)
 	})
 
 	if err != nil {

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	amqp "github.com/rabbitmq/amqp091-go"
 	gorabbitmq "github.com/wagslane/go-rabbitmq"
-	"go.uber.org/dig"
-	"log"
 	"service-template/internal"
 	"service-template/pkg"
 )
@@ -34,30 +32,15 @@ type ConsumerRabbitService struct {
 	publisher1 *gorabbitmq.Publisher
 }
 
-func NewConsumerRabbitService(dig *dig.Container) *ConsumerRabbitService {
-	c := &ConsumerRabbitService{}
-
-	err := dig.Invoke(func(p *pkg.PostgresRepository) {
-		c.postgres = p
-	})
-	if err != nil {
-		log.Fatal(err)
+func NewConsumerRabbitService(postgres *pkg.PostgresRepository) *ConsumerRabbitService {
+	return &ConsumerRabbitService{
+		postgres: postgres,
 	}
-
-	return c
 }
 
 func (bs *ConsumerRabbitService) SetPublishers(publisher, publisher1 *gorabbitmq.Publisher) {
 	bs.publisher0 = publisher
 	bs.publisher1 = publisher1
-}
-
-func (bs *ConsumerRabbitService) SetServiceLocator(container internal.LocatorInterface) {
-	bs.locator = container
-}
-
-func (bs *ConsumerRabbitService) GetServiceLocator() internal.LocatorInterface {
-	return bs.locator
 }
 
 func (bs *ConsumerRabbitService) Run(father context.Context, router map[string]*RabbitConsumeRoute) {

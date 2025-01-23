@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/dig"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -73,7 +74,7 @@ func (suite *EmptyTestSuite) TestSuiteEmptyHandler() {
 
 	assert.NoError(t, err)
 
-	handlers := NewHandlers(suite.container, nil)
+	handlers := NewHandlers(dig.New())
 
 	rr := httptest.NewRecorder()
 	h := http.HandlerFunc(handlers.EmptyHandler)

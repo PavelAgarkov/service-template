@@ -103,6 +103,51 @@ services:
     networks:
       - service-template
     restart: unless-stopped
+    
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.6.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true        # Включаем авторизацию, но без enrollment
+      # Убираем xpack.security.enrollment.enabled
+      - ELASTIC_PASSWORD=elasticpassword  # Пароль суперпользователя elastic
+        # elasticpassword  пароль для всех пользователей
+#      kibana_system kibanapassword
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - service-template
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f -u elastic:elasticpassword http://localhost:9200 || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+# http://localhost:5601/app/dev_tools#/console
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.6.0
+    container_name: kibana
+    depends_on:
+      - elasticsearch
+    environment:
+      SERVER_NAME: kibana
+      ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
+      # Используем встроенного "kibana_system" вместо enrollment
+      ELASTICSEARCH_USERNAME: "kibana_system"
+      ELASTICSEARCH_PASSWORD: "kibanapassword"
+
+    ports:
+      - "5601:5601"
+    networks:
+      - service-template
+    restart: unless-stopped
 
 volumes:
   rabbitmq_data:
@@ -110,6 +155,7 @@ volumes:
   habrdb-data:
   redis_data:
   etcd-data:
+  es_data:
 
 networks:
   service-template:

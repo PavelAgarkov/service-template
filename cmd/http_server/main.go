@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/elastic/go-elasticsearch/v8"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
 	"log"
@@ -61,6 +62,7 @@ func main() {
 		etcdClientService *pkg.EtcdClientService,
 		srvRepository *repository.SrvRepository,
 		srvService *service.Srv,
+		elk *pkg.ElasticFacade,
 	) {
 		app.RegisterShutdown("logger", func() {
 			err := logger.Sync()
@@ -94,17 +96,7 @@ func main() {
 		return
 	}
 
-	//containerC := internal.NewContainer(logger)
-	//	logger,
-	//	&internal.ServiceInit{Name: pkg.SerializerService, Service: pkg.NewSerializer()},
-	//	&internal.ServiceInit{Name: pkg.PostgresService, Service: postgres},
-	//	&internal.ServiceInit{Name: pkg.EtcdClient, Service: etcdClientService},
-	//).
-	//	Set(repository.SrvRepositoryService, repository.NewSrvRepository(), pkg.PostgresService).
-	//	Set(service.ServiceSrv, service.NewSrv(), pkg.SerializerService, repository.SrvRepositoryService, pkg.EtcdClient)
-	//
-
-	handlers := http_handler.NewHandlers(nil, container)
+	handlers := http_handler.NewHandlers(container)
 	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
 		logger,
 		nil,
@@ -203,6 +195,23 @@ func BuildContainer(father context.Context, logger *zap.Logger, cfg *config.Conf
 	})
 	if err != nil {
 		log.Fatalf("failed to provide serializer %v", err)
+	}
+
+	err = container.Provide(func() *pkg.ElasticFacade {
+		es, err := pkg.NewElasticFacade(
+			elasticsearch.Config{
+				Addresses: []string{"http://localhost:9200"},
+				Username:  "elastic",
+				Password:  "elasticpassword",
+				// Если работаете по HTTPS/TLS — нужно добавить настройки для сертификатов (TLS), см. документацию.
+			}, logger)
+		if err != nil {
+			logger.Fatal("Ошибка создания фасада Elasticsearch: %s", zap.Error(err))
+		}
+		return es
+	})
+	if err != nil {
+		log.Fatalf("failed to provide elastic %v", err)
 	}
 
 	return container

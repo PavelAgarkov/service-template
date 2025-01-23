@@ -21,7 +21,19 @@ import (
 	gorabbitmq "github.com/wagslane/go-rabbitmq"
 )
 
-func BuildContainer(logger *zap.Logger, cfg *config.Config, connectionRabbitString string) *dig.Container {
+type Dependencies struct {
+	dig.In
+
+	Postgres       *pkg.PostgresRepository
+	Connrmq        *gorabbitmq.Conn
+	Bg             *consumers.ConsumerRabbitService
+	RedisClient    *pkg.RedisClient
+	PublisherZero  *gorabbitmq.Publisher `name:"publisherZero"`
+	PublisherFirst *gorabbitmq.Publisher `name:"publisherFirst"`
+	Rmq            *pkg.RabbitMQ
+}
+
+func BuildContainer(father context.Context, logger *zap.Logger, cfg *config.Config, connectionRabbitString string) *dig.Container {
 	container := dig.New()
 	err := container.Provide(func() *zap.Logger { return logger })
 	if err != nil {
@@ -62,11 +74,68 @@ func BuildContainer(logger *zap.Logger, cfg *config.Config, connectionRabbitStri
 		log.Fatalf("failed to provide rabbitmq %v", err)
 	}
 
-	err = container.Provide(func() *consumers.ConsumerRabbitService {
-		return consumers.NewConsumerRabbitService(container)
+	err = container.Provide(func() *pkg.RabbitMQ {
+		return pkg.NewRabbitMQ(logger)
+	})
+	if err != nil {
+		log.Fatalf("failed to provide rabbitmq %v", err)
+	}
+
+	err = container.Provide(func(postgres *pkg.PostgresRepository) *consumers.ConsumerRabbitService {
+		return consumers.NewConsumerRabbitService(postgres)
 	})
 	if err != nil {
 		log.Fatalf("failed to provide consumer %v", err)
+	}
+
+	err = container.Provide(
+		func(connrmq *gorabbitmq.Conn, bg *consumers.ConsumerRabbitService, rmq *pkg.RabbitMQ) *gorabbitmq.Publisher {
+			return rmq.RegisterPublisher(
+				connrmq,
+				func(r gorabbitmq.Return) {
+					err := bg.HandleFailedMessageFromRabbitServer(father, r)()
+					if err != nil {
+						logger.Info(fmt.Sprintf("failed to handle failed message: %v", err))
+						return
+					}
+				},
+				func(c gorabbitmq.Confirmation) {
+					logger.Info(fmt.Sprintf("publisher_0 message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack))
+				},
+				gorabbitmq.WithPublisherOptionsExchangeName("events"),
+				gorabbitmq.WithPublisherOptionsLogging,
+				gorabbitmq.WithPublisherOptionsExchangeDurable,
+			)
+		},
+		dig.Name("publisherZero"),
+	)
+	if err != nil {
+		log.Fatalf("failed to provide publisherZero %v", err)
+	}
+
+	err = container.Provide(
+		func(connrmq *gorabbitmq.Conn, bg *consumers.ConsumerRabbitService, rmq *pkg.RabbitMQ) *gorabbitmq.Publisher {
+			return rmq.RegisterPublisher(
+				connrmq,
+				func(r gorabbitmq.Return) {
+					err := bg.HandleFailedMessageFromRabbitServer(father, r)()
+					if err != nil {
+						logger.Info(fmt.Sprintf("failed to handle failed message: %v", err))
+						return
+					}
+				},
+				func(c gorabbitmq.Confirmation) {
+					logger.Info(fmt.Sprintf("publisher_1 message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack))
+				},
+				gorabbitmq.WithPublisherOptionsExchangeName("my_events"),
+				gorabbitmq.WithPublisherOptionsLogging,
+				gorabbitmq.WithPublisherOptionsExchangeDurable,
+			)
+		},
+		dig.Name("publisherFirst"),
+	)
+	if err != nil {
+		log.Fatalf("failed to provide publisherFirst %v", err)
 	}
 
 	err = container.Provide(func() *pkg.RedisClient {
@@ -121,7 +190,7 @@ func main() {
 	cfg := config.GetConfig()
 
 	connectionRabbitString := "amqp://user:password@localhost:5672/"
-	container := BuildContainer(logger, cfg, connectionRabbitString)
+	container := BuildContainer(father, logger, cfg, connectionRabbitString)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -137,14 +206,16 @@ func main() {
 	defer app.Stop()
 	defer app.RegisterRecovers(logger, sig)()
 
-	rmq := pkg.NewRabbitMQ(logger)
-
 	err := container.Invoke(func(
-		postgres *pkg.PostgresRepository,
-		connrmq *gorabbitmq.Conn,
-		bg *consumers.ConsumerRabbitService,
-		redisClient *pkg.RedisClient,
+		deps Dependencies,
 	) {
+		postgres := deps.Postgres
+		connrmq := deps.Connrmq
+		bg := deps.Bg
+		redisClient := deps.RedisClient
+		publisherZero := deps.PublisherZero
+		publisherFirst := deps.PublisherFirst
+		rmq := deps.Rmq
 		app.RegisterShutdown("logger", func() {
 			err := logger.Sync()
 			if err != nil {
@@ -160,42 +231,9 @@ func main() {
 			Migrate("./migrations", "goose_db_version").
 			MigrateRabbitMq("rabbit_migrations", []string{connectionRabbitString})
 
-		publisher := rmq.RegisterPublisher(
-			connrmq,
-			func(r gorabbitmq.Return) {
-				err := bg.HandleFailedMessageFromRabbitServer(father, r)()
-				if err != nil {
-					logger.Info(fmt.Sprintf("failed to handle failed message: %v", err))
-					return
-				}
-			},
-			func(c gorabbitmq.Confirmation) {
-				logger.Info(fmt.Sprintf("publisher_0 message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack))
-			},
-			gorabbitmq.WithPublisherOptionsExchangeName("events"),
-			gorabbitmq.WithPublisherOptionsLogging,
-			gorabbitmq.WithPublisherOptionsExchangeDurable,
-		)
-		app.RegisterShutdown(consumers.Publisher, publisher.Close, 9)
-
-		publisher1 := rmq.RegisterPublisher(
-			connrmq,
-			func(r gorabbitmq.Return) {
-				err := bg.HandleFailedMessageFromRabbitServer(father, r)()
-				if err != nil {
-					logger.Info(fmt.Sprintf("failed to handle failed message: %v", err))
-					return
-				}
-			},
-			func(c gorabbitmq.Confirmation) {
-				logger.Info(fmt.Sprintf("publisher_1 message confirmed from server. tag: %v, ack: %v", c.DeliveryTag, c.Ack))
-			},
-			gorabbitmq.WithPublisherOptionsExchangeName("my_events"),
-			gorabbitmq.WithPublisherOptionsLogging,
-			gorabbitmq.WithPublisherOptionsExchangeDurable,
-		)
-		app.RegisterShutdown(consumers.Publisher1, publisher1.Close, 9)
-		bg.SetPublishers(publisher, publisher1)
+		app.RegisterShutdown(consumers.Publisher, publisherZero.Close, 9)
+		app.RegisterShutdown(consumers.Publisher1, publisherFirst.Close, 9)
+		bg.SetPublishers(publisherZero, publisherFirst)
 
 		app.RegisterShutdown(
 			"redis-node",
@@ -248,7 +286,7 @@ func main() {
 				},
 			})
 
-		go push(publisher, publisher1, father)
+		go push(publisherZero, publisherFirst, father)
 
 	})
 
@@ -269,18 +307,6 @@ func push(publisher, publisher1 *gorabbitmq.Publisher, father context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			//if err := publisher1.PublishWithContext(
-			//	father,
-			//	[]byte("main file"),
-			//	[]string{"test_queue"},
-			//	gorabbitmq.WithPublishOptionsContentType("application/json"),
-			//	gorabbitmq.WithPublishOptionsExchange("events"),
-			//	gorabbitmq.WithPublishOptionsMandatory,
-			//	gorabbitmq.WithPublishOptionsPersistentDelivery,
-			//); err != nil {
-			//	log.Printf("failed to publish: %v", err)
-			//}
-
 			if err := publisher.PublishWithContext(
 				father,
 				[]byte("my hello, world------>"+strconv.Itoa(i)),
@@ -293,7 +319,6 @@ func push(publisher, publisher1 *gorabbitmq.Publisher, father context.Context) {
 				log.Printf("failed to publish: %v", err)
 			}
 			i++
-			//time.Sleep(1 * time.Second)
 
 		case <-father.Done():
 			log.Println("stopping publisher")
