@@ -14,7 +14,7 @@ import (
 
 func (m *Migrations) MigrateRabbitMq(ctx context.Context, tableNameLock string, rabbitConnStringCluster []string) *Migrations {
 	lockClient := redislock.New(m.redis)
-	lock, err := lockClient.Obtain(ctx, tableNameLock, 10*time.Second, nil)
+	lock, err := lockClient.Obtain(ctx, tableNameLock, 60*time.Second, nil)
 	if errors.Is(err, redislock.ErrNotObtained) {
 		m.logger.Error("Не удалось установить блокировку. Она уже установлена", zap.Error(err))
 		return nil
