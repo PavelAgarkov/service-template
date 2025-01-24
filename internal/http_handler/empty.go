@@ -30,6 +30,7 @@ func (h *Handlers) EmptyHandler(w http.ResponseWriter, r *http.Request) {
 	//vars := mux.Vars(r)
 	//id := vars["id"]
 	ctx := r.Context()
+	h.prometheus.Http.WithLabelValues(r.URL.Path).Inc()
 
 	l := pkg.LoggerFromCtx(ctx)
 

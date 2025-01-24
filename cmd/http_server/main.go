@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
@@ -68,7 +70,10 @@ func main() {
 		elk *pkg.ElasticFacade,
 		redisClient *pkg.RedisClient,
 		migrations *pkg.Migrations,
+		prom *pkg.Prometheus,
 	) {
+		prometheus.MustRegister(prom.Http)
+
 		app.RegisterShutdown("logger", func() {
 			err := logger.Sync()
 			if err != nil {
@@ -95,6 +100,40 @@ func main() {
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to register service: %v", err))
 		}
+
+		handlers := http_handler.NewHandlers(container, prom)
+		simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
+			logger,
+			nil,
+			handlerList(handlers),
+			port,
+			server.LoggerContextMiddleware(logger),
+			server.RecoverMiddleware,
+			server.LoggingMiddleware,
+		)
+		app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttp, 1)
+
+		//openssl req \
+		//-x509 \
+		//-nodes \
+		//-newkey rsa:4096 \
+		//-keyout server.key \
+		//-out server.crt \
+		//-days 365 \
+		//-subj "/CN=localhost" \
+		//-addext "subjectAltName=DNS:localhost"
+		simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
+			logger,
+			nil,
+			handlerList(handlers),
+			":8433",        // Порт сервера
+			"./server.crt", // Путь к сертификату
+			"./server.key", // Путь к ключу
+			server.LoggerContextMiddleware(logger),
+			server.RecoverMiddleware,
+			server.LoggingMiddleware,
+		)
+		app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
 	})
 
 	if err != nil {
@@ -102,39 +141,39 @@ func main() {
 		return
 	}
 
-	handlers := http_handler.NewHandlers(container)
-	simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
-		logger,
-		nil,
-		handlerList(handlers),
-		port,
-		server.LoggerContextMiddleware(logger),
-		server.RecoverMiddleware,
-		server.LoggingMiddleware,
-	)
-	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttp, 1)
-
-	//openssl req \
-	//-x509 \
-	//-nodes \
-	//-newkey rsa:4096 \
-	//-keyout server.key \
-	//-out server.crt \
-	//-days 365 \
-	//-subj "/CN=localhost" \
-	//-addext "subjectAltName=DNS:localhost"
-	simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
-		logger,
-		nil,
-		handlerList(handlers),
-		":8433",        // Порт сервера
-		"./server.crt", // Путь к сертификату
-		"./server.key", // Путь к ключу
-		server.LoggerContextMiddleware(logger),
-		server.RecoverMiddleware,
-		server.LoggingMiddleware,
-	)
-	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
+	//handlers := http_handler.NewHandlers(container)
+	//simpleHttpServerShutdownFunctionHttp := server.CreateHttpServer(
+	//	logger,
+	//	nil,
+	//	handlerList(handlers),
+	//	port,
+	//	server.LoggerContextMiddleware(logger),
+	//	server.RecoverMiddleware,
+	//	server.LoggingMiddleware,
+	//)
+	//app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttp, 1)
+	//
+	////openssl req \
+	////-x509 \
+	////-nodes \
+	////-newkey rsa:4096 \
+	////-keyout server.key \
+	////-out server.crt \
+	////-days 365 \
+	////-subj "/CN=localhost" \
+	////-addext "subjectAltName=DNS:localhost"
+	//simpleHttpServerShutdownFunctionHttps := server.CreateHttpsServer(
+	//	logger,
+	//	nil,
+	//	handlerList(handlers),
+	//	":8433",        // Порт сервера
+	//	"./server.crt", // Путь к сертификату
+	//	"./server.key", // Путь к ключу
+	//	server.LoggerContextMiddleware(logger),
+	//	server.RecoverMiddleware,
+	//	server.LoggingMiddleware,
+	//)
+	//app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttps, 1)
 	<-father.Done()
 }
 
@@ -252,6 +291,13 @@ func BuildContainer(father context.Context, logger *zap.Logger, cfg *config.Conf
 		log.Fatalf("failed to provide migrations %v", err)
 	}
 
+	err = container.Provide(func() *pkg.Prometheus {
+		return pkg.NewPrometheus()
+	})
+	if err != nil {
+		log.Fatalf("failed to provide prometheus %v", err)
+	}
+
 	return container
 }
 
@@ -268,6 +314,7 @@ func handlerList(handlers *http_handler.Handlers) func(simple *server.HTTPServer
 			})).Methods("GET")
 
 		simple.Router.Handle("/empty", http.HandlerFunc(handlers.EmptyHandler)).Methods("POST")
+		simple.Router.Handle("/metrics", promhttp.Handler())
 		//router.HandleFunc("/user/{id}/posts/{postId}", GetPostHandler).Methods("GET")
 		//router.HandleFunc("/user/{id:[0-9]+}/posts/{postId:[0-9]+}", GetPostHandler).Methods("POST")
 	}
