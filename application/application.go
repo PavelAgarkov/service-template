@@ -12,21 +12,21 @@ import (
 	"syscall"
 )
 
-type LinkedList struct {
-	node *Shutdown
+type linkedList struct {
+	node *shutdown
 }
 
-type Shutdown struct {
+type shutdown struct {
 	priority     int
 	name         string
-	next         *Shutdown
+	next         *shutdown
 	shutdownFunc func()
 }
 
 type App struct {
 	ctx         context.Context
 	shutdownRWM sync.RWMutex
-	shutdown    *LinkedList
+	shutdown    *linkedList
 	logger      *zap.Logger
 	container   *dig.Container
 	sig         chan os.Signal
@@ -34,7 +34,7 @@ type App struct {
 
 func NewApp(ctx context.Context, container *dig.Container, logger *zap.Logger) *App {
 	return &App{
-		shutdown:  &LinkedList{},
+		shutdown:  &linkedList{},
 		logger:    logger,
 		ctx:       ctx,
 		container: container,
@@ -47,7 +47,7 @@ func NewApp(ctx context.Context, container *dig.Container, logger *zap.Logger) *
 func (app *App) RegisterShutdown(name string, fn func(), priority int) {
 	app.shutdownRWM.Lock()
 	defer app.shutdownRWM.Unlock()
-	newShutdown := &Shutdown{
+	newShutdown := &shutdown{
 		name:         name,
 		priority:     priority,
 		shutdownFunc: fn,
@@ -86,10 +86,6 @@ func (app *App) ShutdownByName(name string) {
 		}
 		current = current.next
 	}
-}
-
-func (app *App) GetAllRegisteredShutdown() *LinkedList {
-	return app.shutdown
 }
 
 func (app *App) shutdownAllAndDeleteAllCanceled() {
