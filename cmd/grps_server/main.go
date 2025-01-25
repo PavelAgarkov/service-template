@@ -26,6 +26,7 @@ func main() {
 
 	connectionRabbitString := "amqp://user:password@localhost:5672/"
 	app := application.NewApp(father, container.BuildContainerForGrpcServer(logger, cfg, connectionRabbitString), logger)
+	app.Start(cancel)
 	defer app.Stop()
 	defer app.RegisterRecovers()()
 

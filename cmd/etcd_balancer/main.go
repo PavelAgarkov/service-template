@@ -8,34 +8,21 @@ import (
 	"go.uber.org/zap"
 	"log"
 	"os"
-	"os/signal"
 	"service-template/application"
 	"service-template/pkg"
 	"service-template/server"
-	"syscall"
 )
 
 func main() {
-	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "simple_http_server", LogPath: "logs/app.log"})
+	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "etcd_balancer", LogPath: "logs/app.log"})
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
 
-	logger.Info("config initializing")
-	//cfg := config.GetConfig()
-
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	defer signal.Stop(sig)
-
-	go func() {
-		<-sig
-		logger.Info("Signal received. Shutting down server...")
-		cancel()
-	}()
-
-	app := application.NewApp(logger)
+	app := application.NewApp(father, nil, logger)
+	app.Start(cancel)
 	defer app.Stop()
+	defer app.RegisterRecovers()()
 
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
@@ -43,7 +30,6 @@ func main() {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	defer app.RegisterRecovers(logger, sig)()
 
 	port := ":" + os.Getenv("HTTP_PORT")
 
@@ -108,5 +94,5 @@ func main() {
 	)
 	app.RegisterShutdown("simple_https_server", simpleHttpServerShutdownFunctionHttp, 1)
 
-	<-father.Done()
+	app.Run()
 }

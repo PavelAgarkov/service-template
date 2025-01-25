@@ -7,32 +7,22 @@ import (
 	"io"
 	"log"
 	"net/url"
-	"os"
-	"os/signal"
 	"service-template/application"
 	"service-template/pkg"
 	"service-template/server"
-	"syscall"
 )
 
 func main() {
-	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "grpc_server", LogPath: "logs/app.log"})
+	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "http-client", LogPath: "logs/app.log"})
+
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	defer signal.Stop(sig)
-
-	go func() {
-		<-sig
-		logger.Info("Signal received. Shutting down gRPC client...")
-		cancel()
-	}()
-
-	app := application.NewApp(logger)
+	app := application.NewApp(father, nil, logger)
+	app.Start(cancel)
 	defer app.Stop()
+	defer app.RegisterRecovers()()
 
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
@@ -40,7 +30,6 @@ func main() {
 			log.Println(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	defer app.RegisterRecovers(logger, sig)()
 
 	httpClient := server.NewHttpClientConnection(url.URL{Scheme: "http", Host: "localhost:8081"}, 0)
 	httpsClient, _ := server.NewHttpsClientConnection(url.URL{Scheme: "https", Host: "localhost:8080"}, "./server.crt", logger, 0)
@@ -58,8 +47,7 @@ func main() {
 	//-subj "/CN=localhost" \
 	//-addext "subjectAltName=DNS:localhost"
 
-	<-father.Done()
-	app.Stop()
+	app.Run()
 }
 
 func Do(httpsClient *server.HttpClientConnection) {
@@ -76,13 +64,13 @@ func Do(httpsClient *server.HttpClientConnection) {
 	u := baseURL.ResolveReference(&url.URL{Path: "/empty"})
 	resp, err := httpsClient.ClientConnection.Post(u.String(), "application/json", requestBody)
 	if err != nil {
-		log.Fatalf("Failed to send POST request: %v", err)
+		log.Println("Failed to send POST request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
+		log.Println("Failed to read response body: %v", err)
 	}
 
 	fmt.Println("Status:", resp.Status)

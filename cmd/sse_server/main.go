@@ -5,33 +5,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"os/signal"
 	"service-template/application"
 	"service-template/pkg"
 	"service-template/server"
 	"strings"
-	"syscall"
 	"time"
 )
 
 func main() {
-	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "websocket-server", LogPath: "logs/app.log"})
+	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "sse-server", LogPath: "logs/app.log"})
+
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	defer signal.Stop(sig)
-
-	go func() {
-		<-sig
-		logger.Info("Signal received. Shutting down server...")
-		cancel()
-	}()
-	app := application.NewApp(logger)
+	app := application.NewApp(father, nil, logger)
+	app.Start(cancel)
 	defer app.Stop()
+	defer app.RegisterRecovers()()
 
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
@@ -39,7 +30,6 @@ func main() {
 			logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	defer app.RegisterRecovers(logger, sig)()
 
 	httpServerShutdownFunction := server.CreateHttpServer(
 		logger,
@@ -75,7 +65,7 @@ func main() {
 
 	app.RegisterShutdown("websocket_https_server", simpleHttpsServerShutdownFunction, 1)
 
-	<-father.Done()
+	app.Run()
 	logger.Info("app is stopped")
 }
 
