@@ -142,9 +142,19 @@ services:
       # Используем встроенного "kibana_system" вместо enrollment
       ELASTICSEARCH_USERNAME: "kibana_system"
       ELASTICSEARCH_PASSWORD: "kibanapassword"
-
     ports:
       - "5601:5601"
+    networks:
+      - service-template
+    restart: unless-stopped
+    
+#    http://localhost:9090
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
     networks:
       - service-template
     restart: unless-stopped

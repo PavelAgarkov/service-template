@@ -4,37 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/elastic/go-elasticsearch/v8"
 	"go.uber.org/zap"
 	"log"
-	"os"
-	"os/signal"
 	"service-template/application"
 	"service-template/pkg"
-	"syscall"
-
-	"github.com/elastic/go-elasticsearch/v8"
 )
 
 func main() {
 	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "elastic", LogPath: "logs/app.log"})
+
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
 
-	logger.Info("config initializing")
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	defer signal.Stop(sig)
-
-	go func() {
-		<-sig
-		logger.Info("Signal received. Shutting down server...")
-		cancel()
-	}()
-
-	app := application.NewApp(logger)
+	app := application.NewApp(father, nil, logger)
+	app.Start(cancel)
 	defer app.Stop()
-	defer app.RegisterRecovers(logger, sig)()
+	defer app.RegisterRecovers()()
 
 	es, err := pkg.NewElasticFacade(
 		elasticsearch.Config{
@@ -96,6 +83,5 @@ func main() {
 	fmt.Println("Результат агрегации:")
 	fmt.Println(string(prettyAggJSON))
 
-	<-father.Done()
-	logger.Info("application exited gracefully")
+	app.Run()
 }

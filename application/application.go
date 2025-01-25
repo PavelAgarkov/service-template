@@ -1,9 +1,12 @@
 package application
 
 import (
+	"context"
 	"fmt"
+	"go.uber.org/dig"
 	"go.uber.org/zap"
 	"os"
+	"os/signal"
 	"runtime/debug"
 	"sync"
 	"syscall"
@@ -21,34 +24,40 @@ type Shutdown struct {
 }
 
 type App struct {
+	ctx         context.Context
 	shutdownRWM sync.RWMutex
 	shutdown    *LinkedList
 	logger      *zap.Logger
+	container   *dig.Container
+	sig         chan os.Signal
 }
 
-func NewApp(logger *zap.Logger) *App {
+func NewApp(ctx context.Context, container *dig.Container, logger *zap.Logger) *App {
 	return &App{
-		shutdown: &LinkedList{},
-		logger:   logger,
+		shutdown:  &LinkedList{},
+		logger:    logger,
+		ctx:       ctx,
+		container: container,
+		sig:       make(chan os.Signal, 1),
 	}
 }
 
 // RegisterShutdown registers a shutdown function with a priority.
 // priority 0 is the highest priority.
-func (a *App) RegisterShutdown(name string, fn func(), priority int) {
-	a.shutdownRWM.Lock()
-	defer a.shutdownRWM.Unlock()
+func (app *App) RegisterShutdown(name string, fn func(), priority int) {
+	app.shutdownRWM.Lock()
+	defer app.shutdownRWM.Unlock()
 	newShutdown := &Shutdown{
 		Name:         name,
 		Priority:     priority,
 		shutdownFunc: fn,
 	}
-	if a.shutdown.Node == nil || a.shutdown.Node.Priority > priority {
-		newShutdown.Next = a.shutdown.Node
-		a.shutdown.Node = newShutdown
+	if app.shutdown.Node == nil || app.shutdown.Node.Priority > priority {
+		newShutdown.Next = app.shutdown.Node
+		app.shutdown.Node = newShutdown
 		return
 	}
-	current := a.shutdown.Node
+	current := app.shutdown.Node
 	for current.Next != nil && current.Next.Priority <= priority {
 		current = current.Next
 	}
@@ -57,18 +66,18 @@ func (a *App) RegisterShutdown(name string, fn func(), priority int) {
 }
 
 // ShutdownByName shuts down a registered shutdown function by name.
-func (a *App) ShutdownByName(name string) {
-	a.shutdownRWM.Lock()
-	defer a.shutdownRWM.Unlock()
-	if a.shutdown.Node == nil {
+func (app *App) ShutdownByName(name string) {
+	app.shutdownRWM.Lock()
+	defer app.shutdownRWM.Unlock()
+	if app.shutdown.Node == nil {
 		return
 	}
-	if a.shutdown.Node.Name == name {
-		a.shutdown.Node.shutdownFunc()
-		a.shutdown.Node = a.shutdown.Node.Next
+	if app.shutdown.Node.Name == name {
+		app.shutdown.Node.shutdownFunc()
+		app.shutdown.Node = app.shutdown.Node.Next
 		return
 	}
-	current := a.shutdown.Node
+	current := app.shutdown.Node
 	for current.Next != nil {
 		if current.Next.Name == name {
 			current.Next.shutdownFunc()
@@ -79,35 +88,52 @@ func (a *App) ShutdownByName(name string) {
 	}
 }
 
-func (a *App) GetAllRegisteredShutdown() *LinkedList {
-	return a.shutdown
+func (app *App) GetAllRegisteredShutdown() *LinkedList {
+	return app.shutdown
 }
 
-// shutdownAll shuts down all registered shutdown functions.
-func (a *App) shutdownAllAndDeleteAllCanceled() {
-	a.shutdownRWM.Lock()
-	defer a.shutdownRWM.Unlock()
-	for a.shutdown.Node != nil {
-		a.shutdown.Node.shutdownFunc()
-		a.logger.Info(fmt.Sprintf("shutdown func %s with priority %v", a.shutdown.Node.Name, a.shutdown.Node.Priority))
-		a.shutdown.Node = a.shutdown.Node.Next
+func (app *App) shutdownAllAndDeleteAllCanceled() {
+	app.shutdownRWM.Lock()
+	defer app.shutdownRWM.Unlock()
+	for app.shutdown.Node != nil {
+		app.shutdown.Node.shutdownFunc()
+		app.logger.Info(fmt.Sprintf("shutdown func %s with priority %v", app.shutdown.Node.Name, app.shutdown.Node.Priority))
+		app.shutdown.Node = app.shutdown.Node.Next
 	}
 }
 
-// Stop stops the application.
-func (a *App) Stop() {
-	a.logger.Info("Stop()")
-	a.shutdownAllAndDeleteAllCanceled()
+func (app *App) Stop() {
+	app.logger.Info("Stop()")
+	app.shutdownAllAndDeleteAllCanceled()
 }
 
-func (a *App) RegisterRecovers(logger *zap.Logger, sig chan os.Signal) func() {
+func (app *App) Start(cancel context.CancelFunc) {
+	signal.Notify(app.sig, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		defer signal.Stop(app.sig)
+		<-app.sig
+		app.logger.Info("Signal received. Shutting down server...")
+		cancel()
+	}()
+}
+
+func (app *App) RegisterRecovers() func() {
 	return func() {
 		if r := recover(); r != nil {
-			logger.Error("Паника произошла в основном приложении",
+			app.logger.Error("Паника произошла в основном приложении",
 				zap.Any("panic", r),
 				zap.String("stack", string(debug.Stack())),
 			)
-			sig <- syscall.SIGTERM
+			app.sig <- syscall.SIGTERM
 		}
 	}
+}
+
+func (app *App) Container() *dig.Container {
+	return app.container
+}
+
+func (app *App) Run() {
+	<-app.ctx.Done()
 }
