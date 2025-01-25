@@ -13,13 +13,13 @@ import (
 )
 
 type LinkedList struct {
-	Node *Shutdown
+	node *Shutdown
 }
 
 type Shutdown struct {
-	Priority     int
-	Name         string
-	Next         *Shutdown
+	priority     int
+	name         string
+	next         *Shutdown
 	shutdownFunc func()
 }
 
@@ -48,43 +48,43 @@ func (app *App) RegisterShutdown(name string, fn func(), priority int) {
 	app.shutdownRWM.Lock()
 	defer app.shutdownRWM.Unlock()
 	newShutdown := &Shutdown{
-		Name:         name,
-		Priority:     priority,
+		name:         name,
+		priority:     priority,
 		shutdownFunc: fn,
 	}
-	if app.shutdown.Node == nil || app.shutdown.Node.Priority > priority {
-		newShutdown.Next = app.shutdown.Node
-		app.shutdown.Node = newShutdown
+	if app.shutdown.node == nil || app.shutdown.node.priority > priority {
+		newShutdown.next = app.shutdown.node
+		app.shutdown.node = newShutdown
 		return
 	}
-	current := app.shutdown.Node
-	for current.Next != nil && current.Next.Priority <= priority {
-		current = current.Next
+	current := app.shutdown.node
+	for current.next != nil && current.next.priority <= priority {
+		current = current.next
 	}
-	newShutdown.Next = current.Next
-	current.Next = newShutdown
+	newShutdown.next = current.next
+	current.next = newShutdown
 }
 
 // ShutdownByName shuts down a registered shutdown function by name.
 func (app *App) ShutdownByName(name string) {
 	app.shutdownRWM.Lock()
 	defer app.shutdownRWM.Unlock()
-	if app.shutdown.Node == nil {
+	if app.shutdown.node == nil {
 		return
 	}
-	if app.shutdown.Node.Name == name {
-		app.shutdown.Node.shutdownFunc()
-		app.shutdown.Node = app.shutdown.Node.Next
+	if app.shutdown.node.name == name {
+		app.shutdown.node.shutdownFunc()
+		app.shutdown.node = app.shutdown.node.next
 		return
 	}
-	current := app.shutdown.Node
-	for current.Next != nil {
-		if current.Next.Name == name {
-			current.Next.shutdownFunc()
-			current.Next = current.Next.Next
+	current := app.shutdown.node
+	for current.next != nil {
+		if current.next.name == name {
+			current.next.shutdownFunc()
+			current.next = current.next.next
 			return
 		}
-		current = current.Next
+		current = current.next
 	}
 }
 
@@ -95,10 +95,10 @@ func (app *App) GetAllRegisteredShutdown() *LinkedList {
 func (app *App) shutdownAllAndDeleteAllCanceled() {
 	app.shutdownRWM.Lock()
 	defer app.shutdownRWM.Unlock()
-	for app.shutdown.Node != nil {
-		app.shutdown.Node.shutdownFunc()
-		app.logger.Info(fmt.Sprintf("shutdown func %s with priority %v", app.shutdown.Node.Name, app.shutdown.Node.Priority))
-		app.shutdown.Node = app.shutdown.Node.Next
+	for app.shutdown.node != nil {
+		app.shutdown.node.shutdownFunc()
+		app.logger.Info(fmt.Sprintf("shutdown func %s with priority %v", app.shutdown.node.name, app.shutdown.node.priority))
+		app.shutdown.node = app.shutdown.node.next
 	}
 }
 
