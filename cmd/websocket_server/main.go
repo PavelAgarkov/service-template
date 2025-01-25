@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"go.uber.org/dig"
 	"net/http"
-	"os"
-	"os/signal"
 	"service-template/application"
 	"service-template/internal/websocket_handler"
 	"service-template/pkg"
 	"service-template/server"
-	"syscall"
 )
 
 func main() {
@@ -20,17 +17,11 @@ func main() {
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	defer signal.Stop(sig)
-
-	go func() {
-		<-sig
-		logger.Info("Signal received. Shutting down server...")
-		cancel()
-	}()
-	app := application.NewApp(logger)
+	container := dig.New()
+	app := application.NewApp(father, container, logger)
+	app.Start(cancel)
 	defer app.Stop()
+	defer app.RegisterRecovers()()
 
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
@@ -38,9 +29,6 @@ func main() {
 			logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	defer app.RegisterRecovers(logger, sig)()
-
-	container := dig.New()
 
 	hub := server.NewHub()
 	app.RegisterShutdown("garbage_collector", hub.CollectGarbageConnections(logger), 1)
@@ -85,7 +73,7 @@ func main() {
 	)
 
 	app.RegisterShutdown("websocket_https_server", simpleHttpsServerShutdownFunction, 1)
-	<-father.Done()
+	app.Run()
 	logger.Info("app is stopped")
 }
 

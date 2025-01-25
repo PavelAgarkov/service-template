@@ -6,33 +6,23 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/dig"
 	"net/url"
-	"os"
-	"os/signal"
 	"service-template/application"
 	"service-template/internal/websocket_client"
 	"service-template/pkg"
 	"sync"
-	"syscall"
 )
 
 func main() {
-	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "grpc_server", LogPath: "logs/app.log"})
+	logger := pkg.NewLogger(pkg.LoggerConfig{ServiceName: "websocket-client", LogPath: "logs/app.log"})
 	father, cancel := context.WithCancel(context.Background())
 	father = pkg.LoggerWithCtx(father, logger)
 	defer cancel()
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
-	defer signal.Stop(sig)
-
-	go func() {
-		<-sig
-		logger.Info("Signal received. Shutting down websocket client...")
-		cancel()
-	}()
-
-	app := application.NewApp(logger)
+	container := dig.New()
+	app := application.NewApp(father, container, logger)
+	app.Start(cancel)
 	defer app.Stop()
+	defer app.RegisterRecovers()()
 
 	app.RegisterShutdown("logger", func() {
 		err := logger.Sync()
@@ -40,9 +30,7 @@ func main() {
 			logger.Error(fmt.Sprintf("failed to sync logger: %v", err))
 		}
 	}, 101)
-	defer app.RegisterRecovers(logger, sig)()
 
-	container := dig.New()
 	webSocketClientHandler := websocket_client.NewHandlers(container)
 
 	wg := sync.WaitGroup{}
@@ -69,7 +57,7 @@ func main() {
 	//-addext "subjectAltName=DNS:localhost"
 
 	logger.Info("Ожидание завершения работы")
-	<-father.Done()
+	app.Run()
 	wg.Wait()
 	logger.Info("Родительский контекст завершён")
 }
