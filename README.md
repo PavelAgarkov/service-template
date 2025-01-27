@@ -1,4 +1,4 @@
-# <img src="https://github.com/PavelAgarkov/service-template/raw/main/logo.jpg" width="50" height="50"> service-template
+# <img src="https://github.com/PavelAgarkov/service-template/logo.jpg" width="50" height="50"> service-template
 
 Service template for golang microservices with grpc, grpc-gateway, swagger, goose, postgres, redis, docker-compose.
 It is resolving the following tasks:
