@@ -43,3 +43,11 @@ run_goose_migration_down - откат миграций goose
 init_project - инициализация проекта
 build_swagger_docs - сборка swagger документации
 ```
+
+## Docker-compose builder
+```bash
+./docker-util.sh add etcd-compose.yaml rabbit-compose.yaml elastic-search-compose.yaml postgres-compose.yaml redis-compose.yaml prometheus-compose.yaml
+./docker-util.sh start
+./docker-util.sh stop
+./docker-util.sh clear
+```
