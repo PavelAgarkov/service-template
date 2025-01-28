@@ -1,0 +1,11 @@
+services:
+  #    http://localhost:9090
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - service-template
+    restart: unless-stopped

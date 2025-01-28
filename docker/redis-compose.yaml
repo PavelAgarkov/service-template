@@ -1,0 +1,19 @@
+services:
+  #    redis://myuser:mypassword@localhost:6379
+  #    redis://myuser:mypassword@redis-service-template:6379
+  redis:
+    image: redis:7.0.12
+    container_name: redis
+    hostname: redis-service-template
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+      - ./redis-config/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    networks:
+      - service-template
+    restart: unless-stopped
+
+volumes:
+  redis_data:
