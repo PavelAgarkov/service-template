@@ -23,7 +23,7 @@ It helps to start new project with all necessary components. And it have gracefu
 There have docker-compose for local development. 
 Template have a lot of examples for different types of communication between services.
 Template have smooth mechanism for refactorings and adding new features.
-Template have custom DI container for services. 
+Template has dig DI container for services. 
 
 You can just change code if you need to add new features or refactor existing code.
 You can see the example of usage in the `cmd` folder.
