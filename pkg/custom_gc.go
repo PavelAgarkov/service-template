@@ -60,7 +60,6 @@ func (m *MemoryManager) CheckAndRunGC() {
 		// либо мы его достигли, но не опустились ниже lowerLimit
 	}
 }
-
 func (m *MemoryManager) MemoryCompactionCycle(ctx context.Context, timeToCompaction time.Duration) func() {
 	closer := make(chan struct{})
 	go func() {
