@@ -32,7 +32,6 @@ func main() {
 		"memory-compaction",
 		pkg.NewMemoryManager(3*1024*1024, logger).MemoryCompactionCycle(father, 1000*time.Millisecond), 100,
 	)
-	logger.Info("Memory Compaction Cycle started")
 
 	_ = make([]byte, 4*1024*1024)
 
