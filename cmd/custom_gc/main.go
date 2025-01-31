@@ -28,12 +28,11 @@ func main() {
 		}
 	}, 101)
 
-	go func() {
-		memoryManager := pkg.NewMemoryManager(3*1024*1024, logger)
-		gcStoper := memoryManager.MemoryCompactionCycle(father, 5000*time.Millisecond)
-		app.RegisterShutdown("memory-compaction", gcStoper, 100)
-		logger.Info("Memory Compaction Cycle started")
-	}()
+	app.RegisterShutdown(
+		"memory-compaction",
+		pkg.NewMemoryManager(3*1024*1024, logger).MemoryCompactionCycle(father, 1000*time.Millisecond), 100,
+	)
+	logger.Info("Memory Compaction Cycle started")
 
 	_ = make([]byte, 4*1024*1024)
 
