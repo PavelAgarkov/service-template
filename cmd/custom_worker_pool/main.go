@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -17,28 +18,25 @@ type Command interface {
 	Apply(ctx context.Context, store Store, key, value string)
 }
 
-type PutCommand struct {
+type PutCommand struct{}
+
+func (p *PutCommand) Apply(ctx context.Context, store Store, key, value string) {
+	store.Put(key, value)
+	fmt.Println("put", key, ":", value)
 }
 
-type GetCommand struct {
-}
-
-type DelCommand struct {
-}
+type GetCommand struct{}
 
 func (g *GetCommand) Apply(ctx context.Context, store Store, key, value string) {
 	res := store.Get(key)
 	fmt.Println("get", key, ":", res)
 }
 
+type DelCommand struct{}
+
 func (d *DelCommand) Apply(ctx context.Context, store Store, key, value string) {
 	store.Del(key)
 	fmt.Println("del", key)
-}
-
-func (p *PutCommand) Apply(ctx context.Context, store Store, key, value string) {
-	store.Put(key, value)
-	fmt.Println("put", key, ":", value)
 }
 
 type MemStore struct {
@@ -68,20 +66,23 @@ func (m *MemStore) Del(key string) {
 	delete(m.data, key)
 }
 
-// CommandPool
 type CommandPool struct {
-	store Store
-	pool  chan struct{}
+	store  Store
+	pool   chan struct{}
+	inWork atomic.Int64
 }
 
 func NewPoolStore(store Store) *CommandPool {
 	return &CommandPool{store: store, pool: make(chan struct{}, 2)}
 }
 
-func (p *CommandPool) Stop() {
-	if len(p.pool) == 0 {
+func (p *CommandPool) Stop() int64 {
+	if p.inWork.Load() == 0 && p.pool != nil && len(p.pool) == 0 {
 		p.pool = nil
+		fmt.Println("pool stopped")
+		return 0
 	}
+	return p.inWork.Load()
 }
 
 func (p *CommandPool) Reconnect() {
@@ -102,12 +103,12 @@ func (p *CommandPool) Factory(command int) Command {
 }
 
 func (p *CommandPool) Apply(ctx context.Context, command int, key, value string) {
-	cmd := p.Factory(command)
 	select {
 	case <-ctx.Done():
 		fmt.Println("context done")
 		return
 	case p.pool <- struct{}{}:
+		p.inWork.Add(1)
 	}
 	fmt.Println("pool size:", len(p.pool), cap(p.pool))
 	go func() {
@@ -115,10 +116,15 @@ func (p *CommandPool) Apply(ctx context.Context, command int, key, value string)
 			select {
 			case <-ctx.Done():
 				fmt.Println("context done")
+				p.inWork.Add(-1)
+				return
 			case <-p.pool:
+				p.inWork.Add(-1)
 				return
 			}
 		}()
+
+		cmd := p.Factory(command)
 		select {
 		case <-ctx.Done():
 			fmt.Println("context done")
@@ -145,13 +151,16 @@ func main() {
 
 	for i, key := range keys {
 		commands.Apply(ctx, i%3, key, fmt.Sprintf("%s-%d", key, i))
+		fmt.Println("inWork:", commands.inWork.Load())
 	}
 
 	for {
 		if len(commands.pool) == 0 {
-			commands.Stop()
-			fmt.Println("pool is empty")
-			break
+			active := commands.Stop()
+			if active == 0 {
+				fmt.Println("pool is empty")
+				break
+			}
 		}
 		time.Sleep(100 * time.Millisecond)
 		fmt.Println("waiting for pool to be empty")
@@ -160,15 +169,19 @@ func main() {
 
 	for i, key := range keys {
 		commands.Apply(ctx, i%3, key, fmt.Sprintf("%s-%d", key, i))
+		fmt.Println("inWork:", commands.inWork.Load())
 	}
 
 	for {
 		if len(commands.pool) == 0 {
-			commands.Stop()
-			fmt.Println("pool is empty")
-			break
+			active := commands.Stop()
+			if active == 0 {
+				fmt.Println("pool is empty")
+				break
+			}
 		}
 		time.Sleep(100 * time.Millisecond)
 		fmt.Println("waiting for pool to be empty")
 	}
+	fmt.Println("inWork:", commands.inWork.Load())
 }
