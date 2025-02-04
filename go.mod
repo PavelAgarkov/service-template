@@ -28,6 +28,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.17
 	go.uber.org/dig v1.18.0
 	go.uber.org/zap v1.27.0
+	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1

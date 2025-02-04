@@ -30,10 +30,20 @@ func main() {
 
 	app.RegisterShutdown(
 		"memory-compaction",
-		pkg.NewMemoryManager(3*1024*1024, logger).MemoryCompactionCycle(father, 1000*time.Millisecond), 100,
+		pkg.NewMemoryManager(30*1024*1024, 20).MemoryCompactionCycle(father, 1000*time.Millisecond), 100,
 	)
 
-	_ = make([]byte, 4*1024*1024)
+	go func() {
+		for {
+			select {
+			case <-father.Done():
+				return
+			default:
+				_ = make([]byte, 4*1024*1024)
+				time.Sleep(5000 * time.Millisecond)
+			}
+		}
+	}()
 
 	app.Run()
 }
