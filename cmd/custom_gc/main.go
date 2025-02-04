@@ -31,7 +31,8 @@ func main() {
 
 	app.RegisterShutdown(
 		"memory-compaction",
-		pkg.NewMemoryManager(400*1024*1024, 10).MemoryCompactionCycle(father, 10*time.Millisecond), 100,
+		pkg.MemoryCompactionCycle(father, 10*time.Millisecond, 10),
+		100,
 	)
 
 	//debug.SetGCPercent(10)
