@@ -215,7 +215,7 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 		etcdService.logger.Info("Ключ успешно зарегистрирован заново.")
 
 		// Перезапускаем KeepAlive
-		ch, kaErr := newClient.KeepAlive(ctx, lease.ID)
+		alive, kaErr := newClient.KeepAlive(ctx, lease.ID)
 		if kaErr != nil {
 			etcdService.logger.Info(fmt.Sprintf("Ошибка настройки KeepAlive: %v\n", kaErr))
 			newClient.Close()
@@ -227,7 +227,7 @@ func restart(ctx context.Context, etcdService *EtcdClientService) (*EtcdClientSe
 		// Здесь блокирующая часть: ждём keepalive-сообщения в цикле
 		for {
 			select {
-			case ka, ok := <-ch:
+			case ka, ok := <-alive:
 				if !ok {
 					etcdService.logger.Info("KeepAlive канал закрыт")
 					etcdService.logger.Info("KeepAlive канал закрыт, попытка переподключения...")
