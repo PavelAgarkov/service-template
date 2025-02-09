@@ -147,3 +147,73 @@ func (p *CommandPool[A, B, C, D]) Apply(ctx A, command B, key C, value D) {
 		}
 	}()
 }
+
+type Command[C, D String] interface {
+	Apply(ctx context.Context, store Store, key C, value D)
+	GetKey() C
+	GetValue() D
+}
+
+type BaseCommand[C, D String] struct {
+	key   C
+	value D
+}
+
+func (d *BaseCommand[C, D]) GetKey() C {
+	return d.key
+}
+
+func (d *BaseCommand[C, D]) GetValue() D {
+	return d.value
+}
+
+func NewPutCommand[C, D String](key C, value D) *PutCommand[C, D] {
+	return &PutCommand[C, D]{
+		BaseCommand: BaseCommand[C, D]{key: key, value: value},
+	}
+}
+
+type PutCommand[C, D String] struct {
+	BaseCommand[C, D]
+}
+
+func (p *PutCommand[C, D]) Apply(ctx context.Context, store Store, key C, value D) {
+	store.Put(string(key), string(value))
+	fmt.Println("put", key, ":", value)
+}
+
+func NewGetCommand[C, D String](key C, value D) *GetCommand[C, D] {
+	return &GetCommand[C, D]{
+		BaseCommand: BaseCommand[C, D]{
+			key:   key,
+			value: value,
+		},
+	}
+}
+
+type GetCommand[C, D String] struct {
+	BaseCommand[C, D]
+}
+
+func (g *GetCommand[C, D]) Apply(ctx context.Context, store Store, key C, value D) {
+	res := store.Get(string(key))
+	fmt.Println("get", key, ":", res)
+}
+
+func NewDelCommand[C, D String](key C, value D) *DelCommand[C, D] {
+	return &DelCommand[C, D]{
+		BaseCommand: BaseCommand[C, D]{
+			key:   key,
+			value: value,
+		},
+	}
+}
+
+type DelCommand[C, D String] struct {
+	BaseCommand[C, D]
+}
+
+func (d *DelCommand[C, D]) Apply(ctx context.Context, store Store, key C, value D) {
+	store.Del(string(key))
+	fmt.Println("del", key)
+}
