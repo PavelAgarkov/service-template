@@ -38,8 +38,14 @@ func main() {
 	}
 	logger.Info("first pack of messages sent")
 
-	pool.Stop()
-	pool.Reconnect()
+	if err := pool.Stop(); err != nil {
+		logger.Error(err.Error())
+		return
+	}
+	if err := pool.Reconnect(father); err != nil {
+		logger.Error(err.Error())
+		return
+	}
 
 	for i, key := range keys {
 		err := pool.Apply(father, i%3, key, fmt.Sprintf("%s-%d", key, i))
@@ -50,8 +56,14 @@ func main() {
 	}
 	logger.Info("next pack of messages sent")
 
-	pool.Stop()
-	pool.Reconnect()
+	if err := pool.Stop(); err != nil {
+		logger.Error(err.Error())
+		return
+	}
+	if err := pool.Reconnect(father); err != nil {
+		logger.Error(err.Error())
+		return
+	}
 
 	fmt.Println("end_inWork:", pool.GetInWork())
 

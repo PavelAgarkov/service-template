@@ -19,15 +19,14 @@ type String interface {
 
 type CommandPool[A context.Context, B Integer, C, D String] struct {
 	store Store
-	task  chan Command[C, D]
 	size  int
 
-	mainCtx    context.Context
 	poolCtx    context.Context
 	poolCancel context.CancelFunc
 	wg         *sync.WaitGroup
 
 	inWork atomic.Int64
+	task   chan Command[C, D]
 	taskMu sync.Mutex
 
 	muRun sync.Mutex
@@ -41,7 +40,6 @@ func (p *CommandPool[A, B, C, D]) GetInWork() int64 {
 func NewPoolStore[A context.Context, B Integer, C String, D String](ctx context.Context, store Store, size int) *CommandPool[A, B, C, D] {
 	poolCtx, cancel := context.WithCancel(ctx)
 	return &CommandPool[A, B, C, D]{
-		mainCtx:    ctx,
 		poolCtx:    poolCtx,
 		poolCancel: cancel,
 		store:      store,
@@ -51,9 +49,9 @@ func NewPoolStore[A context.Context, B Integer, C String, D String](ctx context.
 	}
 }
 
-func (p *CommandPool[A, B, C, D]) Stop() {
+func (p *CommandPool[A, B, C, D]) Stop() error {
 	if !p.isRun() {
-		return
+		return errors.New("pool is not running")
 	}
 
 	for {
@@ -62,7 +60,7 @@ func (p *CommandPool[A, B, C, D]) Stop() {
 		p.taskMu.Unlock()
 
 		if currentTask == nil {
-			return
+			return errors.New("pool is stopped")
 		}
 
 		time.Sleep(100 * time.Millisecond)
@@ -86,7 +84,7 @@ func (p *CommandPool[A, B, C, D]) Stop() {
 			p.muRun.Lock()
 			p.run = false
 			p.muRun.Unlock()
-			return
+			return nil
 		}
 	}
 }
@@ -101,13 +99,13 @@ func (p *CommandPool[A, B, C, D]) isRun() bool {
 	}
 }
 
-func (p *CommandPool[A, B, C, D]) Reconnect() {
+func (p *CommandPool[A, B, C, D]) Reconnect(ctx context.Context) error {
 	if p.isRun() {
-		return
+		return errors.New("pool is already running")
 	}
 
 	fmt.Println("before reconnect", len(p.task), cap(p.task))
-	poolCtx, cancel := context.WithCancel(p.mainCtx)
+	poolCtx, cancel := context.WithCancel(ctx)
 	p.poolCancel = cancel
 	p.poolCtx = poolCtx
 
@@ -115,8 +113,9 @@ func (p *CommandPool[A, B, C, D]) Reconnect() {
 	p.task = make(chan Command[C, D], p.size)
 	p.taskMu.Unlock()
 
-	p.Run(p.mainCtx)
+	p.Run(ctx)
 	fmt.Println("pool reconnected", len(p.task), cap(p.task))
+	return nil
 }
 
 func (p *CommandPool[A, B, C, D]) Shutdown() {
