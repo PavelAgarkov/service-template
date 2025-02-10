@@ -21,7 +21,7 @@ func main() {
 	defer app.RegisterRecovers()()
 
 	pool := pkg.NewPoolStore[context.Context, int, string, string](father, pkg.NewMemStore(), 12)
-	pool.Start(father)
+	pool.Run(father)
 	app.RegisterShutdown("pool", func() {
 		pool.Shutdown()
 	}, 1)
@@ -31,7 +31,8 @@ func main() {
 	for i, key := range keys {
 		err := pool.Apply(father, i%3, key, fmt.Sprintf("%s-%d", key, i))
 		if err != nil {
-			logger.Error("stop applying" + zap.Error(err).String)
+			logger.Error(err.Error())
+			//logger.Error("stop applying" + zap.Error(err).String)
 			break
 		}
 	}

@@ -18,15 +18,20 @@ type String interface {
 }
 
 type CommandPool[A context.Context, B Integer, C, D String] struct {
-	store      Store
-	inWork     atomic.Int64
-	taskMu     sync.Mutex
-	task       chan Command[C, D]
-	size       int
+	store Store
+	task  chan Command[C, D]
+	size  int
+
 	mainCtx    context.Context
 	poolCtx    context.Context
 	poolCancel context.CancelFunc
 	wg         *sync.WaitGroup
+
+	inWork atomic.Int64
+	taskMu sync.Mutex
+
+	muRun sync.Mutex
+	run   bool
 }
 
 func (p *CommandPool[A, B, C, D]) GetInWork() int64 {
@@ -47,30 +52,70 @@ func NewPoolStore[A context.Context, B Integer, C String, D String](ctx context.
 }
 
 func (p *CommandPool[A, B, C, D]) Stop() {
-	for p.task != nil {
+	if !p.isRun() {
+		return
+	}
+
+	for {
+		p.taskMu.Lock()
+		currentTask := p.task
+		p.taskMu.Unlock()
+
+		if currentTask == nil {
+			return
+		}
+
 		time.Sleep(100 * time.Millisecond)
 		fmt.Println("waiting for pool to stop")
 		if p.inWork.Load() == 0 && p.task != nil && len(p.task) == 0 {
 			p.poolCancel()
-			close(p.task)
+
+			p.taskMu.Lock()
+			if p.task != nil {
+				close(p.task)
+				p.task = nil
+			}
+			p.taskMu.Unlock()
+
 			p.wg.Wait()
 			fmt.Println("pool stopped")
 			p.poolCancel = nil
 			p.poolCtx = nil
 			p.inWork.Store(0)
+
+			p.muRun.Lock()
+			p.run = false
+			p.muRun.Unlock()
 			return
 		}
 	}
-	return
+}
+
+func (p *CommandPool[A, B, C, D]) isRun() bool {
+	p.muRun.Lock()
+	defer p.muRun.Unlock()
+	if !p.run {
+		return false
+	} else {
+		return true
+	}
 }
 
 func (p *CommandPool[A, B, C, D]) Reconnect() {
+	if p.isRun() {
+		return
+	}
+
 	fmt.Println("before reconnect", len(p.task), cap(p.task))
 	poolCtx, cancel := context.WithCancel(p.mainCtx)
 	p.poolCancel = cancel
 	p.poolCtx = poolCtx
+
+	p.taskMu.Lock()
 	p.task = make(chan Command[C, D], p.size)
-	p.Start(p.mainCtx)
+	p.taskMu.Unlock()
+
+	p.Run(p.mainCtx)
 	fmt.Println("pool reconnected", len(p.task), cap(p.task))
 }
 
@@ -91,16 +136,18 @@ func (p *CommandPool[A, B, C, D]) Factory(command B, key C, value D) Command[C, 
 	}
 }
 
-func (a *CommandPool[A, B, C, D]) Start(ctx context.Context) {
+func (a *CommandPool[A, B, C, D]) Run(ctx context.Context) {
+	if a.isRun() {
+		return
+	}
+
 	for i := 1; i <= cap(a.task); i++ {
+		a.wg.Add(1)
 		go func() {
-			a.wg.Add(1)
 			defer a.wg.Done()
-			t := time.NewTicker(100 * time.Millisecond)
-			defer t.Stop()
 			defer func() {
 				if r := recover(); r != nil {
-					fmt.Println("recovered in f", r)
+					fmt.Println("recovered in Start", r)
 				}
 			}()
 			for {
@@ -108,10 +155,17 @@ func (a *CommandPool[A, B, C, D]) Start(ctx context.Context) {
 				current := a.task
 				a.taskMu.Unlock()
 
-				// Если канал равен nil (пул остановлен), ждём и повторяем проверку
 				if current == nil {
 					time.Sleep(100 * time.Millisecond)
 					fmt.Println("worker", "waiting (pool frozen)")
+					if a.poolCtx.Err() != nil {
+						fmt.Println("worker pool context done")
+						return
+					}
+					if ctx.Err() != nil {
+						fmt.Println("worker main context done")
+						return
+					}
 					continue
 				}
 
@@ -135,44 +189,43 @@ func (a *CommandPool[A, B, C, D]) Start(ctx context.Context) {
 			}
 		}()
 	}
+	a.muRun.Lock()
+	a.run = true
+	a.muRun.Unlock()
+
 	fmt.Println("pool started")
 }
 
 func (p *CommandPool[A, B, C, D]) Apply(ctx A, command B, key C, value D) error {
+	if !p.isRun() {
+		return errors.New("pool is not running")
+	}
+
 	p.taskMu.Lock()
 	currentTask := p.task
 	p.taskMu.Unlock()
 
 	if currentTask == nil {
+		fmt.Println("Cannot apply command, pool is stopped (frozen)")
 		return errors.New("pool is stopped (frozen)")
 	}
-	go func(currentTask chan Command[C, D]) {
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Println("recovered in Apply", r)
-			}
-		}()
 
-		if currentTask == nil {
-			fmt.Println("Cannot apply command, pool is stopped (frozen)")
-			return
+	cmd := p.Factory(command, key, value)
+	select {
+	case <-p.poolCtx.Done():
+		fmt.Println("in send pool context done")
+		return p.poolCtx.Err()
+	case <-ctx.Done():
+		fmt.Println("in send context done")
+		return ctx.Err()
+	default:
+		if currentTask != nil {
+			currentTask <- cmd
+		} else {
+			fmt.Println("Cannot apply command, pool is stopped")
+			return errors.New("pool is stopped")
 		}
-		cmd := p.Factory(command, key, value)
-		select {
-		case <-p.poolCtx.Done():
-			fmt.Println("in send pool context done")
-			return
-		case <-ctx.Done():
-			fmt.Println("in send context done")
-			return
-		default:
-			if currentTask != nil {
-				currentTask <- cmd
-			} else {
-				fmt.Println("Cannot apply command, pool is stopped")
-			}
-		}
-	}(currentTask)
+	}
 	return nil
 }
 
