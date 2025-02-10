@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"service-template/application"
 	"service-template/pkg"
-	"time"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	defer app.Stop()
 	defer app.RegisterRecovers()()
 
-	pool := pkg.NewPoolStore[context.Context, int, string, string](pkg.NewMemStore(), 4)
+	pool := pkg.NewPoolStore[context.Context, int, string, string](father, pkg.NewMemStore(), 12)
 	pool.Start(father)
 	app.RegisterShutdown("pool", func() {
 		pool.Shutdown()
@@ -28,42 +28,37 @@ func main() {
 
 	keys := []string{"a", "b", "c", "d", "e", "f", "g"}
 
-	time.Sleep(100 * time.Millisecond)
 	for i, key := range keys {
-		pool.Apply(father, i%3, key, fmt.Sprintf("%s-%d", key, i))
+		err := pool.Apply(father, i%3, key, fmt.Sprintf("%s-%d", key, i))
+		if err != nil {
+			logger.Error("stop applying" + zap.Error(err).String)
+			break
+		}
 	}
 	logger.Info("first pack of messages sent")
 
-	for {
-		active := pool.Stop()
-		if active == 0 {
-			fmt.Println("pool is empty")
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-		fmt.Println("waiting for pool to be empty")
-	}
+	pool.Stop()
 	pool.Reconnect()
 
-	time.Sleep(100 * time.Millisecond)
 	for i, key := range keys {
-		pool.Apply(father, i%3, key, fmt.Sprintf("%s-%d", key, i))
+		err := pool.Apply(father, i%3, key, fmt.Sprintf("%s-%d", key, i))
+		if err != nil {
+			logger.Error("stop applying" + zap.Error(err).String)
+			break
+		}
 	}
 	logger.Info("next pack of messages sent")
 
-	for {
-		active := pool.Stop()
-		if active == 0 {
-			fmt.Println("pool is empty")
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-		fmt.Println("waiting for pool to be empty")
-	}
-
+	pool.Stop()
 	pool.Reconnect()
+
 	fmt.Println("end_inWork:", pool.GetInWork())
-	pool.Apply(father, 0, "a", "new-a")
+
+	logger.Info("last messages sent")
+	err := pool.Apply(father, 0, "a", "new-a")
+	if err != nil {
+		logger.Error("stop applying" + zap.Error(err).String)
+	}
 
 	app.Run()
 }
