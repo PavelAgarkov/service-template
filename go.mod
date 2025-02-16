@@ -24,6 +24,7 @@ require (
 	github.com/swaggo/swag v1.16.4
 	github.com/testcontainers/testcontainers-go v0.34.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.34.0
+	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/wagslane/go-rabbitmq v0.14.2
 	go.etcd.io/etcd/client/v3 v3.5.17
 	go.uber.org/dig v1.18.0
@@ -100,7 +101,6 @@ require (
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
-	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.17 // indirect
