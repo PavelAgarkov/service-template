@@ -21,7 +21,10 @@ func main() {
 	defer app.RegisterRecovers()()
 
 	pool := pkg.NewPoolStore[context.Context, int, string, string](father, pkg.NewMemStore(), 12)
-	pool.Run(father)
+	handler := func(ctx context.Context, cmd pkg.Command[string, string], store pkg.Store, key string, value string) {
+		cmd.Apply(ctx, store, key, value)
+	}
+	pool.Run(father, handler)
 	app.RegisterShutdown("pool", func() {
 		pool.Shutdown()
 	}, 1)
@@ -42,7 +45,7 @@ func main() {
 		logger.Error(err.Error())
 		return
 	}
-	if err := pool.Reconnect(father); err != nil {
+	if err := pool.Reconnect(father, handler); err != nil {
 		logger.Error(err.Error())
 		return
 	}
@@ -60,7 +63,7 @@ func main() {
 		logger.Error(err.Error())
 		return
 	}
-	if err := pool.Reconnect(father); err != nil {
+	if err := pool.Reconnect(father, handler); err != nil {
 		logger.Error(err.Error())
 		return
 	}
